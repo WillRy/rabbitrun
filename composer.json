@@ -1,0 +1,12 @@
+{
+    "autoload": {
+        "psr-4": {
+            "WillRy\\RabbitRun\\": "src/"
+        }
+    },
+    "require": {
+        "php-amqplib/php-amqplib": "2.12.3",
+        "ext-pcntl": "*",
+        "ext-pdo": "*"
+    }
+}

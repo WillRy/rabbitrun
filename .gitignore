@@ -1,0 +1,12 @@
+# IDEs
+.vscode
+.idea
+
+# Composer
+vendor
+
+# Docker env
+docker/dbdata
+docker/rabbitmqdata
+.bash_history
+.composer
