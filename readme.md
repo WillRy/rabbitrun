@@ -8,6 +8,9 @@ Mecanismo de fila utilizando a combinação do RabbitMQ e MySQL
 Combinando o MySQL junto ao RabbitMQ, é possível pesquisar e excluir/ignorar itens da fila de forma simples, o que não
 é possível somente com o RabbitMQ, devido as limitações dele em procurar itens dentro da fila
 
+**Workers**: É possível ter vários workers consumindo a fila ao mesmo tempo,
+pois o rabbit mq trata a distribuição de tarefa entre eles.
+
 ## Requisitos
 
 - MySQL
@@ -150,3 +153,10 @@ $worker
         new EmailWorker()
     );
 ```
+
+## Demonstração
+
+Dentro desse repositório tem a pasta **demo**, contendo dois arquivos:
+
+- **publisher.php**: Arquivo que publica itens na fila
+- **consumer.php**: Arquivo que consome itens na fila, podendo ter várias instâncias
