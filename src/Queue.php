@@ -360,7 +360,7 @@ class Queue
                 false,
                 false,
                 function (AMQPMessage $message) use ($worker) {
-                    print_r("[INCOMING]" . PHP_EOL);
+                    print_r("[TASK RECEIVED]" . PHP_EOL);
                     $incomeData = json_decode($message->getBody(), true);
 
                     $taskID = !empty($incomeData['tag']) ? $incomeData['tag'] : null;
@@ -372,17 +372,17 @@ class Queue
 
                     if (empty($databaseData)) {
                         $message->nack();
-                        return print_r("[IGNORED]: $taskID" . PHP_EOL);
+                        return print_r("[IGNORED - NOT FOUND IN DATABASE]: $taskID" . PHP_EOL);
                     }
 
                     if ($databaseData["status"] === 'canceled') {
                         (new Task($message, $databaseData))->nackCancel();
-                        return print_r("[CANCELED]: $taskID" . PHP_EOL);
+                        return print_r("[CANCELED - MANUALLY CANCELED]: $taskID" . PHP_EOL);
                     }
 
                     if ($databaseData["status"] === "success") {
                         $message->ack();
-                        return print_r("[SUCCESS]: $taskID" . PHP_EOL);
+                        return print_r("[SUCCESSFULLY PROCESSED]: $taskID" . PHP_EOL);
                     }
 
                     $stmt = $this->db->prepare("update jobs set start_at = ?, status = ?, end_at = null where tag = ?");
