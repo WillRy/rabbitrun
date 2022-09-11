@@ -10,21 +10,28 @@ class EmailWorker implements \WillRy\RabbitRun\WorkerInterface
         $body = $data->getData();
         $database = $data->getDatabaseData();
 
-        var_dump($body, $database);
+        /**
+         * Fazer o processamento que for necessário
+         */
 
+        //simulando um erro qualquer para exemplo
         $fakeException = rand() % 2 === 0;
-//        $fakeException = true;
         if ($fakeException) throw new \Exception("=== Erro ===");
 
-
-//            print("Sucesso:{$body->id_email}".PHP_EOL);
-
+        /** Marca o item como sucesso */
         $data->ack();
+
+
+        /** Marca o item como erro */
+        //$data->nackError();
+
+        /** Marca o item como cancelado */
+        //$data->nackCancel();
     }
 
 
-    public function error(array $data, Exception $error = null)
+    public function error(array $databaseData, Exception $error = null)
     {
-        print_r("=== Erro ===" . PHP_EOL);
+
     }
 }

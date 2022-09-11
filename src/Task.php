@@ -109,6 +109,16 @@ class Task
         $stmt->execute();
     }
 
+    public function nackCancel()
+    {
+        $this->nack("canceled");
+    }
+
+    public function nackError()
+    {
+        $this->nack("error");
+    }
+
     /**
      * Marca o item como processado com erro ou cancelado
      */

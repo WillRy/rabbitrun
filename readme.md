@@ -40,6 +40,7 @@ create table jobs(
  retries int not null default 0,
  max_retries int not null default 10,
  requeue_error boolean default true,
+ last_error text,
  status enum('waiting','processing','canceled','error','success') default 'waiting',
  start_at datetime,
  end_at datetime
@@ -69,7 +70,10 @@ $worker = (new \WillRy\RabbitRun\Queue())
         3306
     );
 
-for ($i = 0; $i <= 300; $i++) {
+$requeue_on_error = true;
+$max_retries = 3;
+
+for ($i = 0; $i <= 10; $i++) {
     $worker
         ->createQueue("queue_teste")
         ->publish(
@@ -77,6 +81,8 @@ for ($i = 0; $i <= 300; $i++) {
                 "id_email" => rand(),
                 "conteudo" => "blablabla"
             ],
+            $requeue_on_error,
+            $max_retries
         );
 }
 
@@ -100,22 +106,29 @@ class EmailWorker implements \WillRy\RabbitRun\WorkerInterface
         $body = $data->getData();
         $database = $data->getDatabaseData();
 
-        var_dump($body, $database);
+        /**
+         * Fazer o processamento que for necessário
+         */
 
+        //simulando um erro qualquer para exemplo
         $fakeException = rand() % 2 === 0;
-//        $fakeException = true;
         if ($fakeException) throw new \Exception("=== Erro ===");
 
-
-//            print("Sucesso:{$body->id_email}".PHP_EOL);
-
+        /** Marca o item como sucesso */
         $data->ack();
+
+
+        /** Marca o item como erro */
+        //$data->nackError();
+
+        /** Marca o item como cancelado */
+        //$data->nackCancel();
     }
 
 
-    public function error(array $data, Exception $error = null)
+    public function error(array $databaseData, Exception $error = null)
     {
-        print_r("=== Erro ===" . PHP_EOL);
+
     }
 }
 
@@ -153,6 +166,28 @@ $worker
         new EmailWorker()
     );
 ```
+
+## Tratamento de erros e sucesso
+
+Dentro da classe de worker, deverá ser implementada a interface **WorkerInterface**,
+que torna obrigatório 2 metodos:
+
+- **handle:** Processa a tarefa
+- **error:** Callback executado quando ocorre um erro
+
+Todos **as exceptions lançadas no método handle**, serão
+interceptadas automaticamente para que o item seja
+marcado como **erro** e seja **recolocado na fila** se necessário
+
+
+## OBRIGATÓRIO
+
+- Sempre execute um: nack, nackCancel ou nackError para que a tarefa
+tenha um tratamento e não fique infinito na fila.
+
+nack: marca como sucesso
+nackCancel: marca a tarefa como cancelada
+nackError: marca a tarefa como erro, tratando automaticamente o requeue
 
 ## Demonstração
 

@@ -71,6 +71,7 @@ class Queue
 
     /**
      * Desliga conexões e canais
+     *
      * @throws Exception
      */
     public function closeConnection()
@@ -207,7 +208,9 @@ class Queue
      * @throws Exception
      */
     public function publish(
-        array $payload = []
+        array $payload = [],
+        bool  $requeue_on_error = true,
+        int   $max_retries = 10
     )
     {
         $tag = $this->randomTag(30);
@@ -222,10 +225,12 @@ class Queue
             ];
 
 
-            $stmt = $this->db->prepare("INSERT INTO jobs(tag, queue, payload) VALUES(?,?,?)");
+            $stmt = $this->db->prepare("INSERT INTO jobs(tag, queue, payload, requeue_error, max_retries) VALUES(?,?,?,?,?)");
             $stmt->bindValue(1, $payload['tag']);
             $stmt->bindValue(2, $payload['queue']);
             $stmt->bindValue(3, json_encode($payload));
+            $stmt->bindValue(4, $requeue_on_error);
+            $stmt->bindValue(5, $max_retries);
             $stmt->execute();
 
             $payload["id"] = $this->db->lastInsertId();
@@ -342,7 +347,7 @@ class Queue
         int             $sleepSeconds = 3
     )
     {
-        if($sleepSeconds < 1) $sleepSeconds = 1;
+        if ($sleepSeconds < 1) $sleepSeconds = 1;
 
         $this->loopConnection(function () use ($worker, $sleepSeconds) {
             $this->channel->basic_qos(null, 1, null);
@@ -355,7 +360,7 @@ class Queue
                 false,
                 false,
                 function (AMQPMessage $message) use ($worker) {
-                    print_r("[INCOMING]".PHP_EOL);
+                    print_r("[INCOMING]" . PHP_EOL);
                     $incomeData = json_decode($message->getBody(), true);
 
                     $taskID = !empty($incomeData['tag']) ? $incomeData['tag'] : null;
@@ -370,13 +375,15 @@ class Queue
                         return print_r("[IGNORED]: $taskID" . PHP_EOL);
                     }
 
-                    $cancel = $databaseData["status"] === 'canceled';
+                    if ($databaseData["status"] === 'canceled') {
+                        (new Task($message, $databaseData))->nackCancel();
+                        return print_r("[CANCELED]: $taskID" . PHP_EOL);
+                    }
 
-                    if($databaseData["status"] === "success") {
+                    if ($databaseData["status"] === "success") {
                         $message->ack();
                         return print_r("[SUCCESS]: $taskID" . PHP_EOL);
                     }
-
 
                     $stmt = $this->db->prepare("update jobs set start_at = ?, status = ?, end_at = null where tag = ?");
                     $stmt->bindValue(1, date('Y-m-d H:i:s'));
@@ -384,17 +391,12 @@ class Queue
                     $stmt->bindValue(3, $taskID);
                     $stmt->execute();
 
-                    if ($cancel) {
-                        (new Task($message, $databaseData))->nack('canceled');
-                        return print_r("[CANCELED]: $taskID" . PHP_EOL);
-                    }
-
                     try {
                         $worker->handle(new Task($message, $databaseData));
                         return print_r("[SUCCESS]: $taskID" . PHP_EOL);
                     } catch (Exception $e) {
                         $task = new Task($message, $databaseData);
-                        $task->nack('error');
+                        $task->nackError();
 
                         $worker->error($databaseData);
 

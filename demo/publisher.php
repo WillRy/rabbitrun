@@ -18,7 +18,10 @@ $worker = (new \WillRy\RabbitRun\Queue())
         3306
     );
 
-for ($i = 0; $i <= 3000; $i++) {
+$requeue_on_error = true;
+$max_retries = 3;
+
+for ($i = 0; $i <= 10; $i++) {
     $worker
         ->createQueue("queue_teste")
         ->publish(
@@ -26,5 +29,7 @@ for ($i = 0; $i <= 3000; $i++) {
                 "id_email" => rand(),
                 "conteudo" => "blablabla"
             ],
+            $requeue_on_error,
+            $max_retries
         );
 }
