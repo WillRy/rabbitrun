@@ -182,12 +182,12 @@ marcado como **erro** e seja **recolocado na fila** se necessário
 
 ## OBRIGATÓRIO
 
-- Sempre execute um: nack, nackCancel ou nackError para que a tarefa
+- Sempre execute um: **nack**, **nackCancel** ou **nackError** para que a tarefa
 tenha um tratamento e não fique infinito na fila.
 
-nack: marca como sucesso
-nackCancel: marca a tarefa como cancelada
-nackError: marca a tarefa como erro, tratando automaticamente o requeue
+- nack: marca como sucesso
+- nackCancel: marca a tarefa como cancelada
+- nackError: marca a tarefa como erro, tratando automaticamente o requeue
 
 ## Demonstração
 
