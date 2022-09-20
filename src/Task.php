@@ -102,11 +102,17 @@ class Task
 
         $this->message->ack();
 
-        $stmt = $this->db->prepare("UPDATE jobs SET end_at = ?, status = ? where tag = ?");
+        if ($data['auto_delete_end']) {
+            $stmt = $this->db->prepare("DELETE FROM jobs WHERE id = ?");
+            $stmt->bindValue(1, $data['id']);
+            return $stmt->execute();
+        }
+
+        $stmt = $this->db->prepare("UPDATE jobs SET end_at = ?, status = ? where id = ?");
         $stmt->bindValue(1, date('Y-m-d H:i:s'));
         $stmt->bindValue(2, 'success');
-        $stmt->bindValue(3, $data['tag']);
-        $stmt->execute();
+        $stmt->bindValue(3, $data['id']);
+        return $stmt->execute();
     }
 
     public function nackCancel()
@@ -131,26 +137,32 @@ class Task
 
         $requeue = $status === 'error' && $data['requeue_error'];
 
-        // se tem que repor e é infinito as tentativas
-        if ($requeue && empty($maxRetries)) {
+        $isAutoDelete = $data['auto_delete_end'];
+
+        if ($requeue && empty($maxRetries)) { // se tem que repor na fila e é infinito as tentativas
             $retries++;
             $this->message->nack(true);
-        } else if ($requeue && $retries < $maxRetries) {
+        } else if ($requeue && $retries < $maxRetries) { // se tem que repor na fila e tem numero maximo de tentativas
             $retries++;
             $this->message->nack(true);
-        } else {
+        } else { // esgotou numero de tentativas ou não tem que repor na fila
             $this->message->nack();
+
+            if ($isAutoDelete) {
+                $stmt = $this->db->prepare("DELETE FROM jobs WHERE id = ?");
+                $stmt->bindValue(1, $data['id']);
+                return $stmt->execute();
+            }
         }
 
         $status = $status === 'error' ? $status : 'canceled';
-
 
         $stmt = $this->db->prepare("UPDATE jobs SET end_at = ?, status = ?, retries = ? WHERE id = ?");
         $stmt->bindValue(1, date('Y-m-d H:i:s'));
         $stmt->bindValue(2, $status);
         $stmt->bindValue(3, $retries);
         $stmt->bindValue(4, $data['id']);
-        $stmt->execute();
+        return $stmt->execute();
 
     }
 

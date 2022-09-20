@@ -210,7 +210,8 @@ class Queue
     public function publish(
         array $payload = [],
         bool  $requeue_on_error = true,
-        int   $max_retries = 10
+        int   $max_retries = 10,
+        bool  $auto_delete_end = false
     )
     {
         $tag = $this->randomTag(30);
@@ -225,12 +226,13 @@ class Queue
             ];
 
 
-            $stmt = $this->db->prepare("INSERT INTO jobs(tag, queue, payload, requeue_error, max_retries) VALUES(?,?,?,?,?)");
+            $stmt = $this->db->prepare("INSERT INTO jobs(tag, queue, payload, requeue_error, max_retries, auto_delete_end) VALUES(?,?,?,?,?,?)");
             $stmt->bindValue(1, $payload['tag']);
             $stmt->bindValue(2, $payload['queue']);
             $stmt->bindValue(3, json_encode($payload));
             $stmt->bindValue(4, $requeue_on_error);
             $stmt->bindValue(5, $max_retries);
+            $stmt->bindValue(6, $auto_delete_end, \PDO::PARAM_BOOL);
             $stmt->execute();
 
             $payload["id"] = $this->db->lastInsertId();

@@ -41,6 +41,7 @@ create table jobs(
  max_retries int not null default 10,
  requeue_error boolean default true,
  last_error text,
+ auto_delete_end boolean default false,
  status enum('waiting','processing','canceled','error','success') default 'waiting',
  start_at datetime,
  end_at datetime
@@ -72,8 +73,9 @@ $worker = (new \WillRy\RabbitRun\Queue())
 
 $requeue_on_error = true;
 $max_retries = 3;
+$auto_delete = true;
 
-for ($i = 0; $i <= 10; $i++) {
+for ($i = 0; $i <= 9; $i++) {
     $worker
         ->createQueue("queue_teste")
         ->publish(
@@ -82,7 +84,8 @@ for ($i = 0; $i <= 10; $i++) {
                 "conteudo" => "blablabla"
             ],
             $requeue_on_error,
-            $max_retries
+            $max_retries,
+            $auto_delete
         );
 }
 

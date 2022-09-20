@@ -39,8 +39,9 @@ class ConnectPDO
                 $dbname = self::$opt["dbname"];
                 $dbuser = self::$opt["user"];
                 $dbpass = self::$opt["pass"];
+                $port = self::$opt["port"];
 
-                $conn = new \PDO("$driver:host=$host;dbname=$dbname", $dbuser, $dbpass);
+                $conn = new \PDO("$driver:host=$host;dbname=$dbname;port=$port", $dbuser, $dbpass);
                 $conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
 
                 self::$instance = $conn;
