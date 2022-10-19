@@ -1,4 +1,19 @@
 {
+    "name": "willry/rabbitrun",
+    "description": "Fila, mensageria e pub/sub com rabbitmq",
+    "license": "MIT",
+    "keywords": [
+        "rabbitmq",
+        "fila",
+        "mensageria",
+        "pubsub"
+    ],
+    "authors": [
+        {
+            "name": "Willry",
+            "email": "wiribasczky@gmail.com"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "WillRy\\RabbitRun\\": "src/"
