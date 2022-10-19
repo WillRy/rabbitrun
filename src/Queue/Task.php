@@ -1,11 +1,13 @@
 <?php
 
 
-namespace WillRy\RabbitRun;
+namespace WillRy\RabbitRun\Queue;
 
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
+use WillRy\RabbitRun\Connections\Connect;
+use WillRy\RabbitRun\Connections\ConnectPDO;
 
 class Task
 {

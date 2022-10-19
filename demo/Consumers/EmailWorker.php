@@ -2,10 +2,10 @@
 
 use PhpAmqpLib\Message\AMQPMessage;
 
-class EmailWorker implements \WillRy\RabbitRun\WorkerInterface
+class EmailWorker implements \WillRy\RabbitRun\Queue\WorkerInterface
 {
 
-    public function handle(\WillRy\RabbitRun\Task $data)
+    public function handle(\WillRy\RabbitRun\Queue\Task $data)
     {
         $body = $data->getData();
         $database = $data->getDatabaseData();

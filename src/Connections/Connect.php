@@ -1,6 +1,6 @@
 <?php
 
-namespace WillRy\RabbitRun;
+namespace WillRy\RabbitRun\Connections;
 
 use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
@@ -46,7 +46,7 @@ class Connect
                         'user' => self::$opt["user"],
                         'password' => self::$opt["pass"]
                     ]
-                ], ['heartbeat' => 4]);
+                ], ['heartbeat' => 15]);
             } catch (\Exception $exception) {
                 die('Connection error RabbitMQ' . $exception->getMessage());
             }

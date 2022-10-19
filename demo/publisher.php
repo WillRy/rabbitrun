@@ -2,7 +2,7 @@
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\Queue())
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
     ->configRabbit(
         "rabbitmq", //rabbitmq host
         "5672", //rabbitmq port

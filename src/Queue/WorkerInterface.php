@@ -1,6 +1,6 @@
 <?php
 
-namespace WillRy\RabbitRun;
+namespace WillRy\RabbitRun\Queue;
 
 use Exception;
 

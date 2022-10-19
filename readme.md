@@ -55,20 +55,20 @@ create table jobs(
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\Queue())
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
     ->configRabbit(
-        "rabbitmq",
-        "5672",
-        "admin",
-        "admin",
-        "/"
+        "rabbitmq", //rabbitmq host
+        "5672", //rabbitmq port
+        "admin", //rabbitmq user
+        "admin", //rabbitmq password
+        "/" //rabbitmq vhost
     )->configPDO(
-        'mysql',
-        'db',
-        'env_db',
-        'root',
-        'root',
-        3306
+        'mysql', //pdo driver
+        'db', //pdo host
+        'env_db', //pdo db_name
+        'root', //pdo username
+        'root', //pdo password
+        3306 //pdo port
     );
 
 $requeue_on_error = true;
@@ -101,10 +101,10 @@ for ($i = 0; $i <= 9; $i++) {
 
 use PhpAmqpLib\Message\AMQPMessage;
 
-class EmailWorker implements \WillRy\RabbitRun\WorkerInterface
+class EmailWorker implements \WillRy\RabbitRun\Queue\WorkerInterface
 {
 
-    public function handle(\WillRy\RabbitRun\Task $data)
+    public function handle(\WillRy\RabbitRun\Queue\Task $data)
     {
         $body = $data->getData();
         $database = $data->getDatabaseData();
@@ -147,7 +147,7 @@ require_once __DIR__ . '/../vendor/autoload.php';
 require_once __DIR__ . "/Consumers/EmailWorker.php";
 
 
-$worker = (new \WillRy\RabbitRun\Queue())
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
     ->configRabbit(
         "rabbitmq",
         "5672",

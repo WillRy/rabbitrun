@@ -1,20 +1,17 @@
 <?php
 
-namespace WillRy\RabbitRun;
-
-use PhpAmqpLib\Connection\AMQPStreamConnection;
+namespace WillRy\RabbitRun\Connections;
 
 /**
  * Class Connect Singleton Pattern
  */
 class ConnectPDO
 {
-    /**
-     * @const array
-     */
-    private static array $opt = [];
+    /**  @var array */
+    private static $opt = [];
 
-    private static \PDO $instance;
+    /** @var \PDO */
+    private static $instance;
 
     /**
      * Connect constructor. Private singleton
