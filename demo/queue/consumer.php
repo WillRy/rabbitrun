@@ -1,8 +1,8 @@
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
-require_once __DIR__ . "/Consumers/EmailWorker.php";
+require_once __DIR__ . "/EmailWorker.php";
 
 
 $worker = (new \WillRy\RabbitRun\Queue\Queue())

@@ -46,7 +46,10 @@ class Connect
                         'user' => self::$opt["user"],
                         'password' => self::$opt["pass"]
                     ]
-                ], ['heartbeat' => 15]);
+                ], [
+                    'read_write_timeout' => 30,    // needs to be at least 2x heartbeat
+                    'heartbeat'          => 15
+                ]);
             } catch (\Exception $exception) {
                 die('Connection error RabbitMQ' . $exception->getMessage());
             }

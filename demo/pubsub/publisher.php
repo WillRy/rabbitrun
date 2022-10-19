@@ -1,8 +1,8 @@
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue())
+$worker = (new \WillRy\RabbitRun\PubSub\PubSub())
     ->configRabbit(
         "rabbitmq", //rabbitmq host
         "5672", //rabbitmq port
@@ -18,20 +18,15 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue())
         3306 //pdo port
     );
 
-$requeue_on_error = true;
-$max_retries = 3;
-$auto_delete = true;
 
-for ($i = 0; $i <= 9; $i++) {
+for ($i = 0; $i <= 10; $i++) {
     $worker
-        ->createQueue("queue_teste")
+        ->createPubSub("pubsub_teste")
         ->publish(
             [
                 "id_email" => rand(),
                 "conteudo" => "blablabla"
-            ],
-            $requeue_on_error,
-            $max_retries,
-            $auto_delete
+            ]
         );
+    sleep(2);
 }

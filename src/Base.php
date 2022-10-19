@@ -48,6 +48,8 @@ class Base
 
     /**
      * Garante o desligamento correto dos workers
+     * via sinal no sistema operacional
+     * eliminando loops e conexões
      * @param $signal
      */
     public function shutdown($signal)
@@ -66,6 +68,15 @@ class Base
         }
     }
 
+    /**
+     * Configura o rabbitmq e gera conexão ativa
+     * @param $host
+     * @param $port
+     * @param $user
+     * @param $pass
+     * @param $vhost
+     * @return $this
+     */
     public function configRabbit($host, $port, $user, $pass, $vhost): Base
     {
         Connect::config($host, $port, $user, $pass, $vhost);
@@ -75,6 +86,16 @@ class Base
         return $this;
     }
 
+    /**
+     * Configura o PDO e gera conexão ativa
+     * @param $driver
+     * @param $host
+     * @param $dbname
+     * @param $user
+     * @param $pass
+     * @param $port
+     * @return $this
+     */
     public function configPDO($driver, $host, $dbname, $user, $pass, $port): Base
     {
         ConnectPDO::config($driver, $host, $dbname, $user, $pass, $port);
@@ -84,6 +105,11 @@ class Base
         return $this;
     }
 
+    /**
+     * Gera uma conexão no rabbitmq e gera um canal(opcional)
+     * @param bool $createChannel
+     * @return mixed|AMQPStreamConnection|void
+     */
     public function getConnection($createChannel = true)
     {
         $this->instance = Connect::getInstance();
@@ -95,6 +121,10 @@ class Base
         return $this->instance;
     }
 
+    /**
+     * Retorna canal ativo ou cria um novo
+     * @return \PhpAmqpLib\Channel\AMQPChannel|void
+     */
     public function getChannel()
     {
         $this->channel = Connect::getChannel();
@@ -172,8 +202,7 @@ class Base
             $durable,
             $exclusive,
             $auto_delete,
-            false,
-            new AMQPTable(['x-queue-type' => 'quorum'])
+            false
         );
         return $this;
     }
@@ -193,6 +222,7 @@ class Base
 
     /**
      * Mantém a conexão, mesmo em caso de erro
+     * de rede ou conexão
      * @param $callback
      * @throws \Exception
      */
