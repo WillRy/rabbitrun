@@ -19,13 +19,9 @@ pois o rabbit mq trata a distribuição de tarefa entre eles.
 
 ## Demonstração
 
-**3k de mensagens**
+**Consumo de hardware baixo com 50k de mensagens e 40 workers**
 
-![Painel administrativo](./midia/queue-01.png)
-
-**Consumo de hardware baixo com 3k de mensagens e 4 workers**
-
-![Uso de hardware](./midia/queue-02.png)
+![Painel administrativo](./midia/rabbitmq.png)
 
 ## Criar tabela de background jobs
 
