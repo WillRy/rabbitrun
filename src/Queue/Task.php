@@ -159,7 +159,7 @@ class Task
 
         $status = $status === 'error' ? $status : 'canceled';
 
-        $stmt = $this->db->prepare("UPDATE ".Queue::$table." SET end_at = ?, status = ?, retries = ? WHERE id = ?");
+        $stmt = $this->db->prepare("UPDATE ".Queue::$table." SET end_at = ?, status = ?, retries = ?, status_desc = ? WHERE id = ?");
         $stmt->bindValue(1, date('Y-m-d H:i:s'));
         $stmt->bindValue(2, $status);
         $stmt->bindValue(3, $retries);
