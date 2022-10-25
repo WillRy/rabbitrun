@@ -105,21 +105,21 @@ class Task
         $this->message->ack();
 
         if ($data['auto_delete_end']) {
-            $stmt = $this->db->prepare("DELETE FROM jobs WHERE id = ?");
+            $stmt = $this->db->prepare("DELETE FROM ".Queue::$table." WHERE id = ?");
             $stmt->bindValue(1, $data['id']);
             return $stmt->execute();
         }
 
-        $stmt = $this->db->prepare("UPDATE jobs SET end_at = ?, status = ? where id = ?");
+        $stmt = $this->db->prepare("UPDATE ".Queue::$table." SET end_at = ?, status = ? where id = ?");
         $stmt->bindValue(1, date('Y-m-d H:i:s'));
         $stmt->bindValue(2, 'success');
         $stmt->bindValue(3, $data['id']);
         return $stmt->execute();
     }
 
-    public function nackCancel()
+    public function nackCancel(?string $statusDescription = null)
     {
-        $this->nack("canceled");
+        $this->nack("canceled", $statusDescription);
     }
 
     public function nackError()
@@ -130,7 +130,7 @@ class Task
     /**
      * Marca o item como processado com erro ou cancelado
      */
-    public function nack($status = 'error')
+    public function nack($status = 'error', ?string $statusDescription = null)
     {
         $data = $this->dataBaseData;
 
@@ -151,7 +151,7 @@ class Task
             $this->message->nack();
 
             if ($isAutoDelete) {
-                $stmt = $this->db->prepare("DELETE FROM jobs WHERE id = ?");
+                $stmt = $this->db->prepare("DELETE FROM ".Queue::$table." WHERE id = ?");
                 $stmt->bindValue(1, $data['id']);
                 return $stmt->execute();
             }
@@ -159,11 +159,12 @@ class Task
 
         $status = $status === 'error' ? $status : 'canceled';
 
-        $stmt = $this->db->prepare("UPDATE jobs SET end_at = ?, status = ?, retries = ? WHERE id = ?");
+        $stmt = $this->db->prepare("UPDATE ".Queue::$table." SET end_at = ?, status = ?, retries = ? WHERE id = ?");
         $stmt->bindValue(1, date('Y-m-d H:i:s'));
         $stmt->bindValue(2, $status);
         $stmt->bindValue(3, $retries);
-        $stmt->bindValue(4, $data['id']);
+        $stmt->bindValue(4, $statusDescription);
+        $stmt->bindValue(5, $data['id']);
         return $stmt->execute();
 
     }
@@ -190,7 +191,7 @@ class Task
      * Retorna o payload de um item na fila
      * @return object|null
      */
-    public function getPayload(): ?object
+    public function getPayload(): ?array
     {
         return $this->payload;
     }

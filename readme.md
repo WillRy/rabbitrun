@@ -30,18 +30,45 @@ drop table if exists jobs;
 
 create table jobs(
  id bigint auto_increment primary key,
- tag text not null,
- queue varchar(255) not null,
- payload text not null,
+ queue varchar(255) not NULL COMMENT 'queue name',
+ payload text not NULL COMMENT'json content, filter with JSON_EXTRACT',
  retries int not null default 0,
  max_retries int not null default 10,
  requeue_error boolean default true,
- last_error text,
+ last_error text COMMENT'last error description',
+ status_desc text COMMENT 'cancel/other status reason',
+ id_owner bigint COMMENT 'ID to determine the owner (user) of the item in the queue',
+ id_object bigint COMMENT 'ID to determine which object the queue item came from (ex: user, product and etc)r',
  auto_delete_end boolean default false,
  status enum('waiting','processing','canceled','error','success') default 'waiting',
  start_at datetime,
- end_at datetime
+ end_at datetime,
+ INDEX idx_id_object (id_object),
+ INDEX idx_queue (queue),
+ INDEX idx_id_owner (id_owner)
 );
+```
+
+## Customizar o nome da tabela
+
+Caso queira customizar o nome da tabela, é possível passando para o construtor da classe Queue, o nome da tabela
+
+```php
+(new \WillRy\RabbitRun\Queue\Queue("nome_tabela"))
+    ->configRabbit(
+        "rabbitmq", //rabbitmq host
+        "5672", //rabbitmq port
+        "admin", //rabbitmq user
+        "admin", //rabbitmq password
+        "/" //rabbitmq vhost
+    )->configPDO(
+        'mysql', //pdo driver
+        'db', //pdo host
+        'env_db', //pdo db_name
+        'root', //pdo username
+        'root', //pdo password
+        3306 //pdo port
+    );
 ```
 
 ## Como publicar itens na fila?

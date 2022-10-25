@@ -16,6 +16,15 @@ class Queue extends Base
     /** @var string nome da exchange */
     protected $exchangeName;
 
+    public static $table;
+
+
+    public function __construct(string $table = "jobs")
+    {
+        parent::__construct();
+
+        self::$table = $table;
+    }
 
     /**
      * Inicializa a fila e exchange, vinculano os 2
@@ -51,10 +60,13 @@ class Queue extends Base
         array $payload = [],
         bool  $requeue_on_error = true,
         int   $max_retries = 10,
-        bool  $auto_delete_end = false
+        bool  $auto_delete_end = false,
+        int $id_owner = null,
+        int $id_object = null
     )
     {
-        $tag = $this->randomTag(30);
+
+        $id = null;
 
         try {
             $this->getConnection();
@@ -62,20 +74,21 @@ class Queue extends Base
             $payload = [
                 "payload" => $payload,
                 'queue' => $this->queueName,
-                'tag' => $tag
             ];
 
 
-            $stmt = $this->db->prepare("INSERT INTO jobs(tag, queue, payload, requeue_error, max_retries, auto_delete_end) VALUES(?,?,?,?,?,?)");
-            $stmt->bindValue(1, $payload['tag']);
-            $stmt->bindValue(2, $payload['queue']);
-            $stmt->bindValue(3, json_encode($payload));
-            $stmt->bindValue(4, $requeue_on_error);
-            $stmt->bindValue(5, $max_retries);
-            $stmt->bindValue(6, $auto_delete_end, \PDO::PARAM_BOOL);
+            $stmt = $this->db->prepare("INSERT INTO ".self::$table."(queue, payload, requeue_error, max_retries, auto_delete_end, id_owner, id_object) VALUES(?,?,?,?,?,?,?)");
+            $stmt->bindValue(1, $payload['queue']);
+            $stmt->bindValue(2, json_encode($payload));
+            $stmt->bindValue(3, $requeue_on_error);
+            $stmt->bindValue(4, $max_retries);
+            $stmt->bindValue(5, $auto_delete_end, \PDO::PARAM_BOOL);
+            $stmt->bindValue(6, $id_owner, \PDO::PARAM_INT);
+            $stmt->bindValue(7, $id_object, \PDO::PARAM_INT);
             $stmt->execute();
 
-            $payload["id"] = $this->db->lastInsertId();
+            $id = $this->db->lastInsertId();
+            $payload["id"] = $id;
 
             $json = json_encode($payload);
 
@@ -91,10 +104,11 @@ class Queue extends Base
 
             return $payload;
         } catch (Exception $e) {
-            $stmt = $this->db->prepare("DELETE FROM jobs WHERE tag = ?");
-            $stmt->bindValue(1, $tag);
-            $stmt->execute();
-
+            if ($id) {
+                $stmt = $this->db->prepare("DELETE FROM ".self::$table." WHERE id = ?");
+                $stmt->bindValue(1, $id);
+                $stmt->execute();
+            }
             throw $e;
         }
 
@@ -129,10 +143,10 @@ class Queue extends Base
                     print_r("[TASK RECEIVED]" . PHP_EOL);
                     $incomeData = json_decode($message->getBody(), true);
 
-                    $taskID = !empty($incomeData['tag']) ? $incomeData['tag'] : null;
+                    $taskID = !empty($incomeData['id']) ? $incomeData['id'] : null;
 
-                    $stmt = $this->db->prepare("SELECT * FROM jobs WHERE tag = ? limit 1");
-                    $stmt->bindValue(1, $taskID, \PDO::PARAM_STR);
+                    $stmt = $this->db->prepare("SELECT * FROM ".self::$table." WHERE id = ? limit 1");
+                    $stmt->bindValue(1, $taskID, \PDO::PARAM_INT);
                     $stmt->execute();
                     $databaseData = $stmt->fetch(\PDO::FETCH_ASSOC);
 
@@ -151,7 +165,7 @@ class Queue extends Base
                         return print_r("[SUCCESSFULLY PROCESSED]: $taskID" . PHP_EOL);
                     }
 
-                    $stmt = $this->db->prepare("update jobs set start_at = ?, status = ?, end_at = null where tag = ?");
+                    $stmt = $this->db->prepare("update ".self::$table." set start_at = ?, status = ?, end_at = null where id = ?");
                     $stmt->bindValue(1, date('Y-m-d H:i:s'));
                     $stmt->bindValue(2, "processing");
                     $stmt->bindValue(3, $taskID);
@@ -164,10 +178,10 @@ class Queue extends Base
                         $task = new Task($message, $databaseData);
                         $task->nackError();
 
-                        $worker->error($databaseData);
+                        $worker->error($databaseData, $e);
 
 
-                        $stmt = $this->db->prepare("UPDATE jobs SET last_error = ? WHERE tag = ?");
+                        $stmt = $this->db->prepare("UPDATE ".self::$table." SET last_error = ? WHERE id = ?");
                         $stmt->bindValue(1, $e->getMessage());
                         $stmt->bindValue(2, $taskID);
                         $stmt->execute();
