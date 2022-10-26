@@ -105,12 +105,12 @@ class Task
         $this->message->ack();
 
         if ($data['auto_delete_end']) {
-            $stmt = $this->db->prepare("DELETE FROM ".Queue::$table." WHERE id = ?");
+            $stmt = $this->db->prepare("DELETE FROM " . Queue::$table . " WHERE id = ?");
             $stmt->bindValue(1, $data['id']);
             return $stmt->execute();
         }
 
-        $stmt = $this->db->prepare("UPDATE ".Queue::$table." SET end_at = ?, status = ? where id = ?");
+        $stmt = $this->db->prepare("UPDATE " . Queue::$table . " SET end_at = ?, status = ? where id = ?");
         $stmt->bindValue(1, date('Y-m-d H:i:s'));
         $stmt->bindValue(2, 'success');
         $stmt->bindValue(3, $data['id']);
@@ -151,7 +151,7 @@ class Task
             $this->message->nack();
 
             if ($isAutoDelete) {
-                $stmt = $this->db->prepare("DELETE FROM ".Queue::$table." WHERE id = ?");
+                $stmt = $this->db->prepare("DELETE FROM " . Queue::$table . " WHERE id = ?");
                 $stmt->bindValue(1, $data['id']);
                 return $stmt->execute();
             }
@@ -159,7 +159,7 @@ class Task
 
         $status = $status === 'error' ? $status : 'canceled';
 
-        $stmt = $this->db->prepare("UPDATE ".Queue::$table." SET end_at = ?, status = ?, retries = ?, status_desc = ? WHERE id = ?");
+        $stmt = $this->db->prepare("UPDATE " . Queue::$table . " SET end_at = ?, status = ?, retries = ?, status_desc = ? WHERE id = ?");
         $stmt->bindValue(1, date('Y-m-d H:i:s'));
         $stmt->bindValue(2, $status);
         $stmt->bindValue(3, $retries);

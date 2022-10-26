@@ -3,7 +3,6 @@
 namespace WillRy\RabbitRun\PubSub;
 
 use PhpAmqpLib\Message\AMQPMessage;
-use WillRy\RabbitRun\PubSub\Task;
 use WillRy\RabbitRun\Traits\Helpers;
 
 class PubSub extends \WillRy\RabbitRun\Base

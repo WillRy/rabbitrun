@@ -18,12 +18,27 @@ class Queue extends Base
 
     public static $table;
 
+    protected $currentID;
+
 
     public function __construct(string $table = "jobs")
     {
         parent::__construct();
 
         self::$table = $table;
+    }
+
+    public function shutdown($signal)
+    {
+        /** sinaliza que a execução foi finalizada enquanto executava um item */
+        if (!empty($this->currentID)) {
+            $stmt = $this->db->prepare("UPDATE " . self::$table . " SET status = ? WHERE id = ?");
+            $stmt->bindValue(1, 'stopped');
+            $stmt->bindValue(2, $this->currentID);
+            $stmt->execute();
+        }
+
+        parent::shutdown($signal);
     }
 
     /**
@@ -61,8 +76,8 @@ class Queue extends Base
         bool  $requeue_on_error = true,
         int   $max_retries = 10,
         bool  $auto_delete_end = false,
-        int $id_owner = null,
-        int $id_object = null
+        int   $id_owner = null,
+        int   $id_object = null
     )
     {
 
@@ -77,7 +92,7 @@ class Queue extends Base
             ];
 
 
-            $stmt = $this->db->prepare("INSERT INTO ".self::$table."(queue, payload, requeue_error, max_retries, auto_delete_end, id_owner, id_object) VALUES(?,?,?,?,?,?,?)");
+            $stmt = $this->db->prepare("INSERT INTO " . self::$table . "(queue, payload, requeue_error, max_retries, auto_delete_end, id_owner, id_object) VALUES(?,?,?,?,?,?,?)");
             $stmt->bindValue(1, $payload['queue']);
             $stmt->bindValue(2, json_encode($payload));
             $stmt->bindValue(3, $requeue_on_error);
@@ -105,7 +120,7 @@ class Queue extends Base
             return $payload;
         } catch (Exception $e) {
             if ($id) {
-                $stmt = $this->db->prepare("DELETE FROM ".self::$table." WHERE id = ?");
+                $stmt = $this->db->prepare("DELETE FROM " . self::$table . " WHERE id = ?");
                 $stmt->bindValue(1, $id);
                 $stmt->execute();
             }
@@ -145,7 +160,7 @@ class Queue extends Base
 
                     $taskID = !empty($incomeData['id']) ? $incomeData['id'] : null;
 
-                    $stmt = $this->db->prepare("SELECT * FROM ".self::$table." WHERE id = ? limit 1");
+                    $stmt = $this->db->prepare("SELECT * FROM " . self::$table . " WHERE id = ? limit 1");
                     $stmt->bindValue(1, $taskID, \PDO::PARAM_INT);
                     $stmt->execute();
                     $databaseData = $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -165,13 +180,14 @@ class Queue extends Base
                         return print_r("[SUCCESSFULLY PROCESSED]: $taskID" . PHP_EOL);
                     }
 
-                    $stmt = $this->db->prepare("update ".self::$table." set start_at = ?, status = ?, end_at = null where id = ?");
+                    $stmt = $this->db->prepare("update " . self::$table . " set start_at = ?, status = ?, end_at = null where id = ?");
                     $stmt->bindValue(1, date('Y-m-d H:i:s'));
                     $stmt->bindValue(2, "processing");
                     $stmt->bindValue(3, $taskID);
                     $stmt->execute();
 
                     try {
+                        $this->currentID = $taskID;
                         $worker->handle(new Task($message, $databaseData));
                         return print_r("[SUCCESS]: $taskID" . PHP_EOL);
                     } catch (Exception $e) {
@@ -181,7 +197,7 @@ class Queue extends Base
                         $worker->error($databaseData, $e);
 
 
-                        $stmt = $this->db->prepare("UPDATE ".self::$table." SET last_error = ? WHERE id = ?");
+                        $stmt = $this->db->prepare("UPDATE " . self::$table . " SET last_error = ? WHERE id = ?");
                         $stmt->bindValue(1, $e->getMessage());
                         $stmt->bindValue(2, $taskID);
                         $stmt->execute();

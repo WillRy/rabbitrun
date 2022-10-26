@@ -2,8 +2,6 @@
 
 namespace WillRy\RabbitRun\PubSub;
 
-use Exception;
-
 interface WorkerInterface
 {
     public function handle(Task $data);

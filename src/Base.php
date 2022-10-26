@@ -4,7 +4,6 @@ namespace WillRy\RabbitRun;
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Exception\AMQPRuntimeException;
-use PhpAmqpLib\Wire\AMQPTable;
 use WillRy\RabbitRun\Connections\Connect;
 use WillRy\RabbitRun\Connections\ConnectPDO;
 use WillRy\RabbitRun\Traits\Helpers;
