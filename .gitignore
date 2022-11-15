@@ -10,3 +10,4 @@ docker/dbdata
 docker/rabbitmqdata
 .bash_history
 .composer
+docker/mongo

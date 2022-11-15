@@ -13,13 +13,6 @@ $worker = (new \WillRy\RabbitRun\PubSub\PubSub())
         "admin",
         "admin",
         "/"
-    )->configPDO(
-        'mysql',
-        'db',
-        'env_db',
-        'root',
-        'root',
-        3306
     );
 
 $worker

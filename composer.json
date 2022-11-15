@@ -24,5 +24,8 @@
         "ext-pcntl": "*",
         "ext-pdo": "*",
         "ext-json": "*"
+    },
+    "suggest": {
+        "mongodb/mongodb": "^1.13"
     }
 }

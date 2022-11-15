@@ -5,11 +5,11 @@ Mecanismo de fila utilizando a combinação do RabbitMQ e MySQL
 - O RabbitMQ para entrega e distribuição da tarefa entre os workers
 - O MySQL para conter detalhes sobre quais tarefas foram executadas e também quais devem ser ignoradas na fila
 
-Combinando o MySQL junto ao RabbitMQ, é possível pesquisar e excluir/ignorar itens da fila de forma simples, o que não
-é possível somente com o RabbitMQ, devido as limitações dele em procurar itens dentro da fila
+Combinando o MySQL junto ao RabbitMQ, é possível pesquisar e excluir/ignorar itens da fila de forma simples, o que não é
+possível somente com o RabbitMQ, devido as limitações dele em procurar itens dentro da fila
 
-**Workers**: É possível ter vários workers consumindo a fila ao mesmo tempo,
-pois o rabbit mq trata a distribuição de tarefa entre eles.
+**Workers**: É possível ter vários workers consumindo a fila ao mesmo tempo, pois o rabbit mq trata a distribuição de
+tarefa entre eles.
 
 ## Requisitos
 
@@ -32,19 +32,25 @@ pois o rabbit mq trata a distribuição de tarefa entre eles.
 ```sql
 drop table if exists jobs;
 
-create table jobs(
- id bigint auto_increment primary key,
- tag text not null,
- queue varchar(255) not null,
- payload text not null,
- retries int not null default 0,
- max_retries int not null default 10,
- requeue_error boolean default true,
- last_error text,
- auto_delete_end boolean default false,
- status enum('waiting','processing','canceled','error','success') default 'waiting',
- start_at datetime,
- end_at datetime
+create table jobs
+(
+    id              bigint auto_increment primary key,
+    queue           varchar(255) not NULL COMMENT 'queue name',
+    payload         text         not NULL COMMENT 'json content, filter with JSON_EXTRACT',
+    retries         int          not null default 0,
+    max_retries     int          not null default 10,
+    requeue_error   boolean               default true,
+    last_error      text COMMENT 'last error description',
+    status_desc     text COMMENT 'cancel/other status reason',
+    id_owner        bigint COMMENT 'ID to determine the owner (user) of the item in the queue',
+    id_object       bigint COMMENT 'ID to determine which object the queue item came from (ex: user, product and etc)r',
+    auto_delete_end boolean               default false,
+    status          enum('waiting','processing','canceled','error','success') default 'waiting',
+    start_at        datetime,
+    end_at          datetime,
+    INDEX           idx_id_object (id_object),
+    INDEX           idx_queue (queue),
+    INDEX           idx_id_owner (id_owner)
 );
 ```
 
@@ -53,40 +59,40 @@ create table jobs(
 ```php
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue())
+$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
+    'mysql',
+    'db',
+    'env_db',
+    'root',
+    'root',
+    3306
+);
+
+$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
     ->configRabbit(
         "rabbitmq", //rabbitmq host
         "5672", //rabbitmq port
         "admin", //rabbitmq user
         "admin", //rabbitmq password
         "/" //rabbitmq vhost
-    )->configPDO(
-        'mysql', //pdo driver
-        'db', //pdo host
-        'env_db', //pdo db_name
-        'root', //pdo username
-        'root', //pdo password
-        3306 //pdo port
     );
 
-$requeue_on_error = true;
-$max_retries = 3;
-$auto_delete = true;
-
 for ($i = 0; $i <= 9; $i++) {
+    $job = new \WillRy\RabbitRun\Queue\Job([
+        "id_email" => rand(),
+        "conteudo" => "blablabla"
+    ]);
+
+    /** optional */
+    $job->setRequeueOnError(true);
+    $job->setMaxRetries(3);
+    $job->setAutoDelete(true);
+
     $worker
         ->createQueue("queue_teste")
-        ->publish(
-            [
-                "id_email" => rand(),
-                "conteudo" => "blablabla"
-            ],
-            $requeue_on_error,
-            $max_retries,
-            $auto_delete
-        );
+        ->publish($job);
 }
 
 ```
@@ -94,7 +100,6 @@ for ($i = 0; $i <= 9; $i++) {
 ## Como consumir itens da fila?
 
 - Criar a classe de worker responsavel pelo processament **(Implementar a interface WorkerInterface)**
-
 
 ```php
 <?php
@@ -142,25 +147,27 @@ class EmailWorker implements \WillRy\RabbitRun\Queue\WorkerInterface
 ```php
 <?php
 
-require_once __DIR__ . '/../vendor/autoload.php';
+require_once __DIR__ . '/../../vendor/autoload.php';
 
-require_once __DIR__ . "/Consumers/EmailWorker.php";
+require_once __DIR__ . "/EmailWorker.php";
 
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue())
+$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
+    'mysql',
+    'db',
+    'env_db',
+    'root',
+    'root',
+    3306
+);
+
+$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
     ->configRabbit(
         "rabbitmq",
         "5672",
         "admin",
         "admin",
         "/"
-    )->configPDO(
-        'mysql',
-        'db',
-        'env_db',
-        'root',
-        'root',
-        3306
     );
 
 $worker
@@ -168,25 +175,23 @@ $worker
     ->consume(
         new EmailWorker()
     );
+
 ```
 
 ## Tratamento de erros e sucesso
 
-Dentro da classe de worker, deverá ser implementada a interface **WorkerInterface**,
-que torna obrigatório 2 metodos:
+Dentro da classe de worker, deverá ser implementada a interface **WorkerInterface**, que torna obrigatório 2 metodos:
 
 - **handle:** Processa a tarefa
 - **error:** Callback executado quando ocorre um erro
 
-Todos **as exceptions lançadas no método handle**, serão
-interceptadas automaticamente para que o item seja
-marcado como **erro** e seja **recolocado na fila** se necessário
-
+Todos **as exceptions lançadas no método handle**, serão interceptadas automaticamente para que o item seja marcado
+como **erro** e seja **recolocado na fila** se necessário
 
 ## OBRIGATÓRIO
 
-- Sempre execute um: **nack**, **nackCancel** ou **nackError** para que a tarefa
-tenha um tratamento e não fique infinito na fila.
+- Sempre execute um: **nack**, **nackCancel** ou **nackError** para que a tarefa tenha um tratamento e não fique
+  infinito na fila.
 
 - nack: marca como sucesso
 - nackCancel: marca a tarefa como cancelada

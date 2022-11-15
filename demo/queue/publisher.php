@@ -2,36 +2,41 @@
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue())
+$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
+    'mysql',
+    'db',
+    'env_db',
+    'root',
+    'root',
+    3306
+);
+
+//
+//$driver = new \WillRy\RabbitRun\Drivers\MongoDriver(
+//    "mongodb://root:root@mongo:27017/"
+//);
+
+$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
     ->configRabbit(
         "rabbitmq", //rabbitmq host
         "5672", //rabbitmq port
         "admin", //rabbitmq user
         "admin", //rabbitmq password
         "/" //rabbitmq vhost
-    )->configPDO(
-        'mysql', //pdo driver
-        'db', //pdo host
-        'env_db', //pdo db_name
-        'root', //pdo username
-        'root', //pdo password
-        3306 //pdo port
     );
 
-$requeue_on_error = true;
-$max_retries = 3;
-$auto_delete = true;
+for ($i = 0; $i <= 500000; $i++) {
+    $job = new \WillRy\RabbitRun\Queue\Job([
+        "id_email" => rand(),
+        "conteudo" => "blablabla"
+    ]);
 
-for ($i = 0; $i <= 9; $i++) {
+    /** optional */
+    $job->setRequeueOnError(true);
+    $job->setMaxRetries(3);
+    $job->setAutoDelete(true);
+
     $worker
         ->createQueue("queue_teste")
-        ->publish(
-            [
-                "id_email" => rand(),
-                "conteudo" => "blablabla"
-            ],
-            $requeue_on_error,
-            $max_retries,
-            $auto_delete
-        );
+        ->publish($job);
 }

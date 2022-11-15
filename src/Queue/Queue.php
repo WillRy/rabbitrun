@@ -7,6 +7,9 @@ namespace WillRy\RabbitRun\Queue;
 use Exception;
 use PhpAmqpLib\Message\AMQPMessage;
 use WillRy\RabbitRun\Base;
+use WillRy\RabbitRun\Drivers\DriverAbstract;
+use WillRy\RabbitRun\Queue\Interfaces\JobInterface;
+use WillRy\RabbitRun\Queue\Interfaces\WorkerInterface;
 
 class Queue extends Base
 {
@@ -16,6 +19,28 @@ class Queue extends Base
     /** @var string nome da exchange */
     protected $exchangeName;
 
+    protected $currentID;
+
+    /** @var DriverAbstract */
+    public $driver;
+
+
+    public function __construct(DriverAbstract $driver)
+    {
+        $this->driver = $driver;
+
+        parent::__construct();
+    }
+
+    public function shutdown($signal)
+    {
+        /** sinaliza que a execução foi finalizada enquanto executava um item */
+        if (!empty($this->currentID)) {
+            $this->driver->setStatusStopped($this->currentID);
+        }
+
+        parent::shutdown($signal);
+    }
 
     /**
      * Inicializa a fila e exchange, vinculano os 2
@@ -43,39 +68,36 @@ class Queue extends Base
     /**
      * Publica mensagem
      *
-     * @param array $payload
+     * @param JobInterface $job
      * @return array
      * @throws Exception
      */
     public function publish(
-        array $payload = [],
-        bool  $requeue_on_error = true,
-        int   $max_retries = 10,
-        bool  $auto_delete_end = false
+        JobInterface $job
     )
     {
-        $tag = $this->randomTag(30);
+
+        $id = null;
 
         try {
             $this->getConnection();
 
             $payload = [
-                "payload" => $payload,
+                "payload" => $job->getPayload(),
                 'queue' => $this->queueName,
-                'tag' => $tag
             ];
 
 
-            $stmt = $this->db->prepare("INSERT INTO jobs(tag, queue, payload, requeue_error, max_retries, auto_delete_end) VALUES(?,?,?,?,?,?)");
-            $stmt->bindValue(1, $payload['tag']);
-            $stmt->bindValue(2, $payload['queue']);
-            $stmt->bindValue(3, json_encode($payload));
-            $stmt->bindValue(4, $requeue_on_error);
-            $stmt->bindValue(5, $max_retries);
-            $stmt->bindValue(6, $auto_delete_end, \PDO::PARAM_BOOL);
-            $stmt->execute();
+            $id = $this->driver->insert(
+                $payload,
+                $job->getRequeueOnError(),
+                $job->getMaxRetries(),
+                $job->getAutoDelete(),
+                $job->getIdOwner(),
+                $job->getIdObject()
+            );
 
-            $payload["id"] = $this->db->lastInsertId();
+            $payload["id"] = $id;
 
             $json = json_encode($payload);
 
@@ -91,10 +113,7 @@ class Queue extends Base
 
             return $payload;
         } catch (Exception $e) {
-            $stmt = $this->db->prepare("DELETE FROM jobs WHERE tag = ?");
-            $stmt->bindValue(1, $tag);
-            $stmt->execute();
-
+            $this->driver->remove($id);
             throw $e;
         }
 
@@ -105,7 +124,7 @@ class Queue extends Base
      * Loop de consumo de mensagem
      *
      * @param WorkerInterface $worker
-     * @param callable|null $getDatabaseData
+     * @param int $sleepSeconds
      * @throws Exception
      */
     public function consume(
@@ -129,12 +148,9 @@ class Queue extends Base
                     print_r("[TASK RECEIVED]" . PHP_EOL);
                     $incomeData = json_decode($message->getBody(), true);
 
-                    $taskID = !empty($incomeData['tag']) ? $incomeData['tag'] : null;
+                    $taskID = !empty($incomeData['id']) ? $incomeData['id'] : null;
 
-                    $stmt = $this->db->prepare("SELECT * FROM jobs WHERE tag = ? limit 1");
-                    $stmt->bindValue(1, $taskID, \PDO::PARAM_STR);
-                    $stmt->execute();
-                    $databaseData = $stmt->fetch(\PDO::FETCH_ASSOC);
+                    $databaseData = $this->driver->get($taskID);
 
                     if (empty($databaseData)) {
                         $message->nack();
@@ -142,7 +158,7 @@ class Queue extends Base
                     }
 
                     if ($databaseData["status"] === 'canceled') {
-                        (new Task($message, $databaseData))->nackCancel();
+                        (new Task($this->driver, $message, $databaseData))->nackCancel();
                         return print_r("[CANCELED - MANUALLY CANCELED]: $taskID" . PHP_EOL);
                     }
 
@@ -151,26 +167,20 @@ class Queue extends Base
                         return print_r("[SUCCESSFULLY PROCESSED]: $taskID" . PHP_EOL);
                     }
 
-                    $stmt = $this->db->prepare("update jobs set start_at = ?, status = ?, end_at = null where tag = ?");
-                    $stmt->bindValue(1, date('Y-m-d H:i:s'));
-                    $stmt->bindValue(2, "processing");
-                    $stmt->bindValue(3, $taskID);
-                    $stmt->execute();
+                    $this->driver->setStatusProcessing($taskID);
 
                     try {
-                        $worker->handle(new Task($message, $databaseData));
+                        $this->currentID = $taskID;
+                        $worker->handle(new Task($this->driver, $message, $databaseData));
                         return print_r("[SUCCESS]: $taskID" . PHP_EOL);
                     } catch (Exception $e) {
-                        $task = new Task($message, $databaseData);
+                        $task = new Task($this->driver, $message, $databaseData);
                         $task->nackError();
 
-                        $worker->error($databaseData);
+                        $worker->error($databaseData, $e);
 
 
-                        $stmt = $this->db->prepare("UPDATE jobs SET last_error = ? WHERE tag = ?");
-                        $stmt->bindValue(1, $e->getMessage());
-                        $stmt->bindValue(2, $taskID);
-                        $stmt->execute();
+                        $this->driver->setError($taskID, $e->getMessage());
 
                         return print_r("[ERROR]: " . $e->getMessage() . PHP_EOL);
                     }

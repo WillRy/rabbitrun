@@ -237,11 +237,11 @@ class Base
                 $this->cleanConnection();
                 sleep(2);
             } catch (\RuntimeException $e) {
-                echo 'Runtime exception ' . PHP_EOL;
+                echo 'Runtime exception ' . $e->getMessage() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             } catch (\ErrorException $e) {
-                echo 'Error exception ' . PHP_EOL;
+                echo 'Error exception ' . $e->getMessage() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             } catch (\Exception $e) {

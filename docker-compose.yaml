@@ -39,6 +39,22 @@ services:
     networks:
       - app-network
 
+
+  mongo:
+    image: mongo
+    container_name: mongo
+    restart: always
+    ports:
+      - 27017:27017
+    volumes:
+      - ./docker/mongo:/data/db
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: root
+      MONGO_INITDB_ROOT_PASSWORD: root
+    networks:
+      - app-network
+
+
   rabbitmq:
     image: rabbitmq:3.10.7-management
     container_name: rabbitmq

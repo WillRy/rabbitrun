@@ -60,6 +60,8 @@ class ConnectPDO
             'pass' => $pass,
             'port' => $port
         ];
+
+        return ConnectPDO::getInstance();
     }
 
 }
