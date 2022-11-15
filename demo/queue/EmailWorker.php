@@ -2,7 +2,7 @@
 
 use PhpAmqpLib\Message\AMQPMessage;
 
-class EmailWorker implements \WillRy\RabbitRun\Queue\WorkerInterface
+class EmailWorker implements \WillRy\RabbitRun\Queue\Interfaces\WorkerInterface
 {
 
     public function handle(\WillRy\RabbitRun\Queue\Task $data)
@@ -10,13 +10,15 @@ class EmailWorker implements \WillRy\RabbitRun\Queue\WorkerInterface
         $body = $data->getData();
         $database = $data->getDatabaseData();
 
+        var_dump($data->getPayload());
+
         /**
          * Fazer o processamento que for necessário
          */
 
         //simulando um erro qualquer para exemplo
-        $fakeException = rand() % 2 === 0;
-        if ($fakeException) throw new \Exception("=== Erro ===");
+//        $fakeException = rand() % 2 === 0;
+//        if ($fakeException) throw new \Exception("=== Erro ===");
 
         /** Marca o item como sucesso */
         $data->ack();

@@ -8,6 +8,7 @@ use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
 use WillRy\RabbitRun\Connections\Connect;
 use WillRy\RabbitRun\Connections\ConnectPDO;
+use WillRy\RabbitRun\Drivers\DriverAbstract;
 
 class Task
 {
@@ -27,27 +28,26 @@ class Task
      */
     protected $instance;
 
-    protected $db;
-
     /** @var AMQPMessage Mensagem */
     protected $message;
 
     /** @var array Mensagem */
     public $dataBaseData;
 
-    public function __construct(AMQPMessage $message, array $dataBaseData)
-    {
-        $this->instance = Connect::getInstance();
+    /** @var DriverAbstract */
+    public $driver;
 
-        $this->db = ConnectPDO::getInstance();
+    public function __construct(DriverAbstract $driver, AMQPMessage $message, array $dataBaseData)
+    {
+        $this->driver = $driver;
+
+        $this->instance = Connect::getInstance();
 
         $this->message = $message;
 
         $this->dataBaseData = $dataBaseData;
 
         $this->hydrate(json_decode($message->getBody(), true));
-
-//        if($cancel) $this->nack(false);
     }
 
     /**
@@ -102,19 +102,13 @@ class Task
     {
         $data = $this->dataBaseData;
 
+        $this->driver->setStatusSuccess($data['id']);
+
         $this->message->ack();
 
         if ($data['auto_delete_end']) {
-            $stmt = $this->db->prepare("DELETE FROM " . Queue::$table . " WHERE id = ?");
-            $stmt->bindValue(1, $data['id']);
-            return $stmt->execute();
+            $this->driver->remove($data['id']);
         }
-
-        $stmt = $this->db->prepare("UPDATE " . Queue::$table . " SET end_at = ?, status = ? where id = ?");
-        $stmt->bindValue(1, date('Y-m-d H:i:s'));
-        $stmt->bindValue(2, 'success');
-        $stmt->bindValue(3, $data['id']);
-        return $stmt->execute();
     }
 
     public function nackCancel(?string $statusDescription = null)
@@ -151,21 +145,18 @@ class Task
             $this->message->nack();
 
             if ($isAutoDelete) {
-                $stmt = $this->db->prepare("DELETE FROM " . Queue::$table . " WHERE id = ?");
-                $stmt->bindValue(1, $data['id']);
-                return $stmt->execute();
+                $this->driver->remove($data['id']);
             }
         }
 
         $status = $status === 'error' ? $status : 'canceled';
 
-        $stmt = $this->db->prepare("UPDATE " . Queue::$table . " SET end_at = ?, status = ?, retries = ?, status_desc = ? WHERE id = ?");
-        $stmt->bindValue(1, date('Y-m-d H:i:s'));
-        $stmt->bindValue(2, $status);
-        $stmt->bindValue(3, $retries);
-        $stmt->bindValue(4, $statusDescription);
-        $stmt->bindValue(5, $data['id']);
-        return $stmt->execute();
+        return $this->driver->updateExecution(
+            $data['id'],
+            $status,
+            $retries,
+            $statusDescription
+        );
 
     }
 
@@ -189,7 +180,7 @@ class Task
 
     /**
      * Retorna o payload de um item na fila
-     * @return object|null
+     * @return object|array|null
      */
     public function getPayload(): ?array
     {

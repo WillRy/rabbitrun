@@ -9,13 +9,6 @@ $worker = (new \WillRy\RabbitRun\PubSub\PubSub())
         "admin", //rabbitmq user
         "admin", //rabbitmq password
         "/" //rabbitmq vhost
-    )->configPDO(
-        'mysql', //pdo driver
-        'db', //pdo host
-        'env_db', //pdo db_name
-        'root', //pdo username
-        'root', //pdo password
-        3306 //pdo port
     );
 
 
