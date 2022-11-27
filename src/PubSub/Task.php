@@ -22,11 +22,6 @@ class Task
      */
     public $data;
 
-    /** @var AMQPStreamConnection
-     * Instancia com a conexão
-     */
-    protected $instance;
-
     protected $db;
 
     /** @var AMQPMessage Mensagem */
@@ -37,8 +32,6 @@ class Task
 
     public function __construct(AMQPMessage $message, array $pubData)
     {
-        $this->instance = Connect::getInstance();
-
         $this->message = $message;
 
         $this->pubData = $pubData;

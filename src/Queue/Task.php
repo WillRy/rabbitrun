@@ -23,11 +23,6 @@ class Task
      */
     public $data;
 
-    /** @var AMQPStreamConnection
-     * Instancia com a conexão
-     */
-    protected $instance;
-
     /** @var AMQPMessage Mensagem */
     protected $message;
 
@@ -40,8 +35,6 @@ class Task
     public function __construct(DriverAbstract $driver, AMQPMessage $message, array $dataBaseData)
     {
         $this->driver = $driver;
-
-        $this->instance = Connect::getInstance();
 
         $this->message = $message;
 
