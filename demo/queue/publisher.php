@@ -25,7 +25,7 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
         "/" //rabbitmq vhost
     );
 
-for ($i = 0; $i <= 500000; $i++) {
+for ($i = 0; $i <= 500; $i++) {
     $job = new \WillRy\RabbitRun\Queue\Job([
         "id_email" => rand(),
         "conteudo" => "blablabla"

@@ -39,8 +39,6 @@ class Task
     {
         $this->instance = Connect::getInstance();
 
-        $this->db = ConnectPDO::getInstance();
-
         $this->message = $message;
 
         $this->pubData = $pubData;

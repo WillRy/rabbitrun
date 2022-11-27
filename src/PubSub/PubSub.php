@@ -35,9 +35,9 @@ class PubSub extends \WillRy\RabbitRun\Base
 
         $this->exchangeName = "{$name}_exchange";
 
-        $this->exchange($this->exchangeName, 'fanout', false, true);
+        $this->exchange($this->exchangeName, 'fanout', false, true, true);
 
-        $this->queue($this->name, false, false, true);
+        $this->queue($this->name, false, false, true,true);
 
         $this->bind($this->name, $this->exchangeName);
 
