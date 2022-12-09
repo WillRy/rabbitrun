@@ -4,7 +4,6 @@ namespace WillRy\RabbitRun;
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Exception\AMQPRuntimeException;
-use PhpAmqpLib\Wire\AMQPTable;
 use WillRy\RabbitRun\Connections\Connect;
 use WillRy\RabbitRun\Connections\ConnectPDO;
 use WillRy\RabbitRun\Traits\Helpers;
@@ -87,25 +86,6 @@ class Base
     }
 
     /**
-     * Configura o PDO e gera conexão ativa
-     * @param $driver
-     * @param $host
-     * @param $dbname
-     * @param $user
-     * @param $pass
-     * @param $port
-     * @return $this
-     */
-    public function configPDO($driver, $host, $dbname, $user, $pass, $port): Base
-    {
-        ConnectPDO::config($driver, $host, $dbname, $user, $pass, $port);
-
-        $this->db = ConnectPDO::getInstance();
-
-        return $this;
-    }
-
-    /**
      * Gera uma conexão no rabbitmq e gera um canal(opcional)
      * @param bool $createChannel
      * @return mixed|AMQPStreamConnection|void
@@ -131,20 +111,12 @@ class Base
         return $this->channel;
     }
 
-    public function getConnectionWithChannel()
-    {
-        $this->getConnection();
-
-        $this->getChannel();
-
-        return $this;
-    }
 
     /**
      * Fecha a conexão com o RabbitMQ
      * @throws \Exception
      */
-    function cleanConnection()
+    public function cleanConnection()
     {
         Connect::closeChannel();
         Connect::closeInstance();

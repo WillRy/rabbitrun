@@ -29,6 +29,11 @@ tarefa entre eles.
 
 ## Criar tabela de background jobs
 
+Ao usar o PDO como driver de espelhamento de fila, deve ser criado as tabelas.
+
+Caso use o Driver do MongoDB, não será necessário criar as collections, pois elas são
+criadas automaticamente
+
 ```sql
 drop table if exists jobs;
 
@@ -52,6 +57,19 @@ create table jobs
     INDEX           idx_queue (queue),
     INDEX           idx_id_owner (id_owner)
 );
+
+drop table if exists rabbit_monitor;
+
+create table rabbit_monitor
+(
+    id         bigint primary key auto_increment,
+    name       varchar(255) not null,
+    status     int          not null default 0,
+    jobID      varchar(255) null,
+    groupName  varchar(255) not null,
+    modifiedAt datetime null
+);
+
 ```
 
 ## Como publicar itens na fila
@@ -167,35 +185,19 @@ $driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
 );
 
 /**
- * Driver no modelo MongoDB
- * 
+ * Driver que irá espelhar os itens da fila para consultas de status/situação
+ * Pode ser: PDO e MongoDB
+ * @var  $driver
  */
 //$driver = new \WillRy\RabbitRun\Drivers\MongoDriver(
 //    "mongodb://root:root@mongo:27017/"
 //);
 
 
-/**
- * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
- * e indica também qual task está executando no mommento
- * Pode ser: PDO e MongoDB
- * @var $monitor
- */
-//$monitor = new \WillRy\RabbitRun\Monitor\RedisMonitor(
-//    'workers',
-//    'redis'
-//);
 
 
-/**
- * Opcional
- * @var string $consumerName nome do consumer para ser usado no monitor
- */
-$consumerName = $_SERVER['argv'][1] ?? null;
 
-$monitor = null;
-
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver, $monitor))
+$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
     ->configRabbit(
         "rabbitmq",
         "5672",
@@ -204,12 +206,32 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver, $monitor))
         "/"
     );
 
+
+/**
+ * Opcional
+ * @var string $consumerName nome do consumer para ser usado no monitor
+ */
+$consumerName = $_SERVER['argv'][1] ?? null;
+
+/**
+ * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
+ * e indica também qual task está executando no mommento
+ * Pode ser: PDO
+ * @var $monitor
+ */
+$monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
+    'queue_teste',
+    $consumerName
+);
+
+
 $worker
     ->createQueue("queue_teste")
     ->consume(
         new EmailWorker(),
         3,
-        $consumerName
+        $consumerName,
+        $monitor //opcional
     );
 
 ```

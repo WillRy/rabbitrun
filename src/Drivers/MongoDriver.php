@@ -4,8 +4,6 @@ namespace WillRy\RabbitRun\Drivers;
 
 use MongoDB\BSON\ObjectId;
 use MongoDB\BSON\UTCDateTime;
-use MongoDB\InsertOneResult;
-use WillRy\RabbitRun\Drivers\DriverAbstract;
 
 class MongoDriver extends DriverAbstract
 {
@@ -116,7 +114,7 @@ class MongoDriver extends DriverAbstract
                 '_id' => new ObjectId($id)
             ]
         );
-        $dados = (array) $item->getArrayCopy();
+        $dados = (array)$item->getArrayCopy();
         $dados['id'] = $dados['_id'];
         return $dados;
     }

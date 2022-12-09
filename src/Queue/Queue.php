@@ -32,11 +32,10 @@ class Queue extends Base
     public $consumerName;
 
 
-    public function __construct(DriverAbstract $driver, Monitor $monitor = null)
+    public function __construct(DriverAbstract $driver)
     {
 
         $this->driver = $driver;
-        $this->monitor = $monitor;
 
         parent::__construct();
     }
@@ -46,7 +45,7 @@ class Queue extends Base
         /** sinaliza que a execução foi finalizada enquanto executava um item */
         if (!empty($this->currentID)) {
             $this->driver->setStatusStopped($this->currentID);
-            $this->setTaskWorkerMonitor(null);
+            $this->setMonitorTask(null);
         }
 
         parent::shutdown($signal);
@@ -140,14 +139,15 @@ class Queue extends Base
     public function consume(
         WorkerInterface $worker,
         int             $sleepSeconds = 3,
-        string          $consumerName = null
+        string          $consumerName = null,
+        ?Monitor        $monitor = null
     )
     {
         if ($sleepSeconds < 1) $sleepSeconds = 1;
 
-        if ($this->monitor) $this->monitor->groupName = $this->queueName;
-
-        if ($consumerName) $this->consumerName = $consumerName;
+        if (!empty($monitor)) {
+            $this->monitor = $monitor;
+        }
 
         $this->loopConnection(function () use ($worker, $sleepSeconds, $consumerName) {
             $this->channel->basic_qos(null, 1, null);
@@ -188,13 +188,13 @@ class Queue extends Base
 
                     $this->driver->setStatusProcessing($this->currentID);
 
-                    $this->setTaskWorkerMonitor($this->currentID);
+                    $this->setMonitorTask($this->currentID);
 
 
                     try {
                         $worker->handle(new Task($this->driver, $message, $databaseData));
 
-                        $this->setTaskWorkerMonitor(null);
+                        $this->setMonitorTask(null);
 
                         return print_r("[SUCCESS]: $taskID" . PHP_EOL);
                     } catch (Exception $e) {
@@ -205,7 +205,7 @@ class Queue extends Base
 
                         $this->driver->setError($taskID, $e->getMessage());
 
-                        $this->setTaskWorkerMonitor(null);
+                        $this->setMonitorTask(null);
 
                         return print_r("[ERROR]: " . $e->getMessage() . PHP_EOL);
                     }
@@ -214,9 +214,9 @@ class Queue extends Base
 
             // Loop as long as the channel has callbacks registered
             while ($this->channel->is_open()) {
-                $this->startWorkerMonitor($this->consumerName);
+                $this->startMonitor();
 
-                if ($this->monitor && !$this->monitor->workerIsRunning($this->consumerName)) {
+                if ($this->monitor && !$this->monitor->workerIsRunning()) {
                     print_r("[WORKER PAUSED]: " . $this->monitor->getItemName() . PHP_EOL);
                     continue;
                 }
@@ -230,13 +230,11 @@ class Queue extends Base
 
     }
 
-    public function startWorkerMonitor($consumerName = null)
+    public function startMonitor()
     {
         if (empty($this->monitor)) return false;
 
-        $this->monitor->startWorker(
-            $consumerName
-        );
+        $this->monitor->startWorker();
 
         return true;
     }
@@ -245,19 +243,16 @@ class Queue extends Base
     {
         if (empty($this->monitor)) return false;
 
-        $this->monitor->pauseWorker(
-            $this->consumerName
-        );
+        $this->monitor->pauseWorker();
 
         return true;
     }
 
-    public function setTaskWorkerMonitor($taskID = null)
+    public function setMonitorTask($taskID = null)
     {
         if (empty($this->monitor)) return false;
 
         $this->monitor->setWorkerItem(
-            $this->consumerName,
             $taskID
         );
 

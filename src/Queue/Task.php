@@ -4,10 +4,7 @@
 namespace WillRy\RabbitRun\Queue;
 
 
-use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
-use WillRy\RabbitRun\Connections\Connect;
-use WillRy\RabbitRun\Connections\ConnectPDO;
 use WillRy\RabbitRun\Drivers\DriverAbstract;
 
 class Task

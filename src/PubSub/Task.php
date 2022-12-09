@@ -4,10 +4,7 @@
 namespace WillRy\RabbitRun\PubSub;
 
 
-use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
-use WillRy\RabbitRun\Connections\Connect;
-use WillRy\RabbitRun\Connections\ConnectPDO;
 
 class Task
 {

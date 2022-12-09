@@ -3,7 +3,6 @@
 namespace WillRy\RabbitRun\PubSub;
 
 use PhpAmqpLib\Message\AMQPMessage;
-use WillRy\RabbitRun\PubSub\Task;
 use WillRy\RabbitRun\Traits\Helpers;
 
 class PubSub extends \WillRy\RabbitRun\Base
@@ -37,7 +36,7 @@ class PubSub extends \WillRy\RabbitRun\Base
 
         $this->exchange($this->exchangeName, 'fanout', false, true, true);
 
-        $this->queue($this->name, false, false, true,true);
+        $this->queue($this->name, false, false, true, true);
 
         $this->bind($this->name, $this->exchangeName);
 
@@ -101,7 +100,6 @@ class PubSub extends \WillRy\RabbitRun\Base
                         $worker->handle(new Task($message, $incomeData));
                         return print_r("[SUCCESS]" . PHP_EOL);
                     } catch (\Exception $e) {
-                        new Task($message, $incomeData);
                         $worker->error($incomeData);
 
                         return print_r("[ERROR]: " . $e->getMessage() . PHP_EOL);

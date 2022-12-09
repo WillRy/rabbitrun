@@ -29,27 +29,10 @@ $driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
 //);
 
 
-/**
- * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
- * e indica também qual task está executando no mommento
- * Pode ser: PDO e MongoDB
- * @var $monitor
- */
-//$monitor = new \WillRy\RabbitRun\Monitor\RedisMonitor(
-//    'workers',
-//    'redis'
-//);
 
 
-/**
- * Opcional
- * @var string $consumerName nome do consumer para ser usado no monitor
- */
-$consumerName = $_SERVER['argv'][1] ?? null;
 
-$monitor = null;
-
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver, $monitor))
+$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
     ->configRabbit(
         "rabbitmq",
         "5672",
@@ -58,10 +41,30 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver, $monitor))
         "/"
     );
 
+
+/**
+ * Opcional
+ * @var string $consumerName nome do consumer para ser usado no monitor
+ */
+$consumerName = $_SERVER['argv'][1] ?? null;
+
+/**
+ * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
+ * e indica também qual task está executando no mommento
+ * Pode ser: PDO
+ * @var $monitor
+ */
+$monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
+    'queue_teste',
+    $consumerName
+);
+
+
 $worker
     ->createQueue("queue_teste")
     ->consume(
         new EmailWorker(),
         3,
-        $consumerName
+        $consumerName,
+        $monitor //opcional
     );

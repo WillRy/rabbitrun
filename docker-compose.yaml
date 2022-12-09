@@ -71,17 +71,6 @@ services:
       - app-network
 
 
-  redis:
-    image: redislabs/rejson:latest
-    container_name: redis
-    hostname: redis
-    ports:
-      - "6379:6379"
-    volumes:
-      - ./docker/redis:/data
-    networks:
-      - app-network
-
 
 networks:
   app-network:

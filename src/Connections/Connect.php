@@ -48,7 +48,7 @@ class Connect
                     ]
                 ], [
                     'read_write_timeout' => 30,    // needs to be at least 2x heartbeat
-                    'heartbeat'          => 15
+                    'heartbeat' => 15
                 ]);
             } catch (\Exception $exception) {
                 die('Connection error RabbitMQ' . $exception->getMessage());
