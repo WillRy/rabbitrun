@@ -8,6 +8,7 @@ vendor
 # Docker env
 docker/dbdata
 docker/rabbitmqdata
+docker/redis
 .bash_history
 .composer
 docker/mongo

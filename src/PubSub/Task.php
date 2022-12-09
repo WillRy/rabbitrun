@@ -4,10 +4,7 @@
 namespace WillRy\RabbitRun\PubSub;
 
 
-use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
-use WillRy\RabbitRun\Connections\Connect;
-use WillRy\RabbitRun\Connections\ConnectPDO;
 
 class Task
 {
@@ -22,11 +19,6 @@ class Task
      */
     public $data;
 
-    /** @var AMQPStreamConnection
-     * Instancia com a conexão
-     */
-    protected $instance;
-
     protected $db;
 
     /** @var AMQPMessage Mensagem */
@@ -37,10 +29,6 @@ class Task
 
     public function __construct(AMQPMessage $message, array $pubData)
     {
-        $this->instance = Connect::getInstance();
-
-        $this->db = ConnectPDO::getInstance();
-
         $this->message = $message;
 
         $this->pubData = $pubData;

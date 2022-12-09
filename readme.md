@@ -25,6 +25,11 @@ tarefa entre eles.
 
 ## Criar tabela de background jobs
 
+Ao usar o PDO como driver de espelhamento de fila, deve ser criado as tabelas.
+
+Caso use o Driver do MongoDB, não será necessário criar as collections, pois elas são
+criadas automaticamente
+
 ```sql
 drop table if exists jobs;
 
@@ -48,31 +53,22 @@ create table jobs
     INDEX           idx_queue (queue),
     INDEX           idx_id_owner (id_owner)
 );
+
+drop table if exists rabbit_monitor;
+
+create table rabbit_monitor
+(
+    id         bigint primary key auto_increment,
+    name       varchar(255) not null,
+    status     int          not null default 0,
+    jobID      varchar(255) null,
+    groupName  varchar(255) not null,
+    modifiedAt datetime null
+);
+
 ```
 
-## Customizar o nome da tabela
-
-Caso queira customizar o nome da tabela, é possível passando para o construtor da classe Queue, o nome da tabela
-
-```php
-(new \WillRy\RabbitRun\Queue\Queue("nome_tabela"))
-    ->configRabbit(
-        "rabbitmq", //rabbitmq host
-        "5672", //rabbitmq port
-        "admin", //rabbitmq user
-        "admin", //rabbitmq password
-        "/" //rabbitmq vhost
-    )->configPDO(
-        'mysql', //pdo driver
-        'db', //pdo host
-        'env_db', //pdo db_name
-        'root', //pdo username
-        'root', //pdo password
-        3306 //pdo port
-    );
-```
-
-## Como publicar itens na fila?
+## Como publicar itens na fila
 
 ```php
 <?php
@@ -170,6 +166,11 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . "/EmailWorker.php";
 
 
+/**
+ * Driver que irá espelhar os itens da fila para consultas de status/situação
+ * Pode ser: PDO e MongoDB
+ * @var  $driver
+ */
 $driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
     'mysql',
     'db',
@@ -178,6 +179,19 @@ $driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
     'root',
     3306
 );
+
+/**
+ * Driver que irá espelhar os itens da fila para consultas de status/situação
+ * Pode ser: PDO e MongoDB
+ * @var  $driver
+ */
+//$driver = new \WillRy\RabbitRun\Drivers\MongoDriver(
+//    "mongodb://root:root@mongo:27017/"
+//);
+
+
+
+
 
 $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
     ->configRabbit(
@@ -188,10 +202,32 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
         "/"
     );
 
+
+/**
+ * Opcional
+ * @var string $consumerName nome do consumer para ser usado no monitor
+ */
+$consumerName = $_SERVER['argv'][1] ?? null;
+
+/**
+ * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
+ * e indica também qual task está executando no mommento
+ * Pode ser: PDO
+ * @var $monitor
+ */
+$monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
+    'queue_teste',
+    $consumerName
+);
+
+
 $worker
     ->createQueue("queue_teste")
     ->consume(
-        new EmailWorker()
+        new EmailWorker(),
+        3,
+        $consumerName,
+        $monitor //opcional
     );
 
 ```

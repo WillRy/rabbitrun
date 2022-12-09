@@ -5,6 +5,11 @@ require_once __DIR__ . '/../../vendor/autoload.php';
 require_once __DIR__ . "/EmailWorker.php";
 
 
+/**
+ * Driver que irá espelhar os itens da fila para consultas de status/situação
+ * Pode ser: PDO e MongoDB
+ * @var  $driver
+ */
 $driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
     'mysql',
     'db',
@@ -14,9 +19,18 @@ $driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
     3306
 );
 
+/**
+ * Driver que irá espelhar os itens da fila para consultas de status/situação
+ * Pode ser: PDO e MongoDB
+ * @var  $driver
+ */
 //$driver = new \WillRy\RabbitRun\Drivers\MongoDriver(
 //    "mongodb://root:root@mongo:27017/"
 //);
+
+
+
+
 
 $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
     ->configRabbit(
@@ -27,8 +41,30 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
         "/"
     );
 
+
+/**
+ * Opcional
+ * @var string $consumerName nome do consumer para ser usado no monitor
+ */
+$consumerName = $_SERVER['argv'][1] ?? null;
+
+/**
+ * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
+ * e indica também qual task está executando no mommento
+ * Pode ser: PDO
+ * @var $monitor
+ */
+$monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
+    'queue_teste',
+    $consumerName
+);
+
+
 $worker
     ->createQueue("queue_teste")
     ->consume(
-        new EmailWorker()
+        new EmailWorker(),
+        3,
+        $consumerName,
+        $monitor //opcional
     );

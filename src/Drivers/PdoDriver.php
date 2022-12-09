@@ -2,8 +2,6 @@
 
 namespace WillRy\RabbitRun\Drivers;
 
-use WillRy\RabbitRun\Drivers\DriverAbstract;
-
 class PdoDriver extends DriverAbstract
 {
     protected $db;

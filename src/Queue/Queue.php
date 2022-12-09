@@ -8,6 +8,7 @@ use Exception;
 use PhpAmqpLib\Message\AMQPMessage;
 use WillRy\RabbitRun\Base;
 use WillRy\RabbitRun\Drivers\DriverAbstract;
+use WillRy\RabbitRun\Monitor\Monitor;
 use WillRy\RabbitRun\Queue\Interfaces\JobInterface;
 use WillRy\RabbitRun\Queue\Interfaces\WorkerInterface;
 
@@ -24,9 +25,16 @@ class Queue extends Base
     /** @var DriverAbstract */
     public $driver;
 
+    /** @var Monitor */
+    public $monitor;
+
+    /** @var string nome do consumer */
+    public $consumerName;
+
 
     public function __construct(DriverAbstract $driver)
     {
+
         $this->driver = $driver;
 
         parent::__construct();
@@ -37,6 +45,7 @@ class Queue extends Base
         /** sinaliza que a execução foi finalizada enquanto executava um item */
         if (!empty($this->currentID)) {
             $this->driver->setStatusStopped($this->currentID);
+            $this->setMonitorTask(null);
         }
 
         parent::shutdown($signal);
@@ -129,12 +138,18 @@ class Queue extends Base
      */
     public function consume(
         WorkerInterface $worker,
-        int             $sleepSeconds = 3
+        int             $sleepSeconds = 3,
+        string          $consumerName = null,
+        ?Monitor        $monitor = null
     )
     {
         if ($sleepSeconds < 1) $sleepSeconds = 1;
 
-        $this->loopConnection(function () use ($worker, $sleepSeconds) {
+        if (!empty($monitor)) {
+            $this->monitor = $monitor;
+        }
+
+        $this->loopConnection(function () use ($worker, $sleepSeconds, $consumerName) {
             $this->channel->basic_qos(null, 1, null);
 
             $this->channel->basic_consume(
@@ -144,13 +159,14 @@ class Queue extends Base
                 false,
                 false,
                 false,
-                function (AMQPMessage $message) use ($worker) {
+                function (AMQPMessage $message) use ($worker, $consumerName) {
                     print_r("[TASK RECEIVED]" . PHP_EOL);
                     $incomeData = json_decode($message->getBody(), true);
 
                     $taskID = !empty($incomeData['id']) ? $incomeData['id'] : null;
 
                     $databaseData = $this->driver->get($taskID);
+
 
                     if (empty($databaseData)) {
                         $message->nack();
@@ -167,11 +183,19 @@ class Queue extends Base
                         return print_r("[SUCCESSFULLY PROCESSED]: $taskID" . PHP_EOL);
                     }
 
-                    $this->driver->setStatusProcessing($taskID);
+
+                    $this->currentID = $taskID;
+
+                    $this->driver->setStatusProcessing($this->currentID);
+
+                    $this->setMonitorTask($this->currentID);
+
 
                     try {
-                        $this->currentID = $taskID;
                         $worker->handle(new Task($this->driver, $message, $databaseData));
+
+                        $this->setMonitorTask(null);
+
                         return print_r("[SUCCESS]: $taskID" . PHP_EOL);
                     } catch (Exception $e) {
                         $task = new Task($this->driver, $message, $databaseData);
@@ -179,8 +203,9 @@ class Queue extends Base
 
                         $worker->error($databaseData, $e);
 
-
                         $this->driver->setError($taskID, $e->getMessage());
+
+                        $this->setMonitorTask(null);
 
                         return print_r("[ERROR]: " . $e->getMessage() . PHP_EOL);
                     }
@@ -189,6 +214,13 @@ class Queue extends Base
 
             // Loop as long as the channel has callbacks registered
             while ($this->channel->is_open()) {
+                $this->startMonitor();
+
+                if ($this->monitor && !$this->monitor->workerIsRunning()) {
+                    print_r("[WORKER PAUSED]: " . $this->monitor->getItemName() . PHP_EOL);
+                    continue;
+                }
+
                 $this->channel->wait(null, false);
                 sleep($sleepSeconds);
             }
@@ -196,5 +228,34 @@ class Queue extends Base
 
         });
 
+    }
+
+    public function startMonitor()
+    {
+        if (empty($this->monitor)) return false;
+
+        $this->monitor->startWorker();
+
+        return true;
+    }
+
+    public function pauseWorkerMonitor()
+    {
+        if (empty($this->monitor)) return false;
+
+        $this->monitor->pauseWorker();
+
+        return true;
+    }
+
+    public function setMonitorTask($taskID = null)
+    {
+        if (empty($this->monitor)) return false;
+
+        $this->monitor->setWorkerItem(
+            $taskID
+        );
+
+        return true;
     }
 }

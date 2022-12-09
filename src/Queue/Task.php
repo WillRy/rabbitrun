@@ -4,10 +4,7 @@
 namespace WillRy\RabbitRun\Queue;
 
 
-use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
-use WillRy\RabbitRun\Connections\Connect;
-use WillRy\RabbitRun\Connections\ConnectPDO;
 use WillRy\RabbitRun\Drivers\DriverAbstract;
 
 class Task
@@ -23,11 +20,6 @@ class Task
      */
     public $data;
 
-    /** @var AMQPStreamConnection
-     * Instancia com a conexão
-     */
-    protected $instance;
-
     /** @var AMQPMessage Mensagem */
     protected $message;
 
@@ -40,8 +32,6 @@ class Task
     public function __construct(DriverAbstract $driver, AMQPMessage $message, array $dataBaseData)
     {
         $this->driver = $driver;
-
-        $this->instance = Connect::getInstance();
 
         $this->message = $message;
 

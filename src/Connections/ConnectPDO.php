@@ -40,6 +40,8 @@ class ConnectPDO
 
                 $conn = new \PDO("$driver:host=$host;dbname=$dbname;port=$port", $dbuser, $dbpass);
                 $conn->setAttribute(\PDO::ATTR_ERRMODE, \PDO::ERRMODE_EXCEPTION);
+                $conn->setAttribute(\PDO::ATTR_STRINGIFY_FETCHES, false);
+                $conn->setAttribute(\PDO::ATTR_EMULATE_PREPARES, false);
 
                 self::$instance = $conn;
             } catch (\Exception $exception) {
