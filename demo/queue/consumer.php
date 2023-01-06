@@ -6,6 +6,12 @@ require_once __DIR__ . "/EmailWorker.php";
 
 
 /**
+ * Opcional
+ * @var string $consumerName nome do consumer para ser usado no monitor
+ */
+$consumerName = $_SERVER['argv'][1] ?? null;
+
+/**
  * Driver que irá espelhar os itens da fila para consultas de status/situação
  * Pode ser: PDO e MongoDB
  * @var  $driver
@@ -28,26 +34,6 @@ $driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
 //    "mongodb://root:root@mongo:27017/"
 //);
 
-
-
-
-
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
-    ->configRabbit(
-        "rabbitmq",
-        "5672",
-        "admin",
-        "admin",
-        "/"
-    );
-
-
-/**
- * Opcional
- * @var string $consumerName nome do consumer para ser usado no monitor
- */
-$consumerName = $_SERVER['argv'][1] ?? null;
-
 /**
  * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
  * e indica também qual task está executando no mommento
@@ -60,11 +46,20 @@ $monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
 );
 
 
+$worker = (new \WillRy\RabbitRun\Queue\Queue($driver, $monitor))
+    ->configRabbit(
+        "rabbitmq",
+        "5672",
+        "admin",
+        "admin",
+        "/"
+    );
+
+
 $worker
     ->createQueue("queue_teste")
     ->consume(
         new EmailWorker(),
         3,
-        $consumerName,
-        $monitor //opcional
+        $consumerName
     );

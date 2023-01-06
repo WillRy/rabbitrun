@@ -14,8 +14,8 @@ class Process implements \WillRy\RabbitRun\PubSub\WorkerInterface
          */
 
         //simulando um erro qualquer para exemplo
-        $fakeException = rand() % 2 === 0;
-        if ($fakeException) throw new \Exception("=== Erro ===");
+        // $fakeException = rand() % 2 === 0;
+        // if ($fakeException) throw new \Exception("=== Erro ===");
 
         echo "Processado".PHP_EOL;
 

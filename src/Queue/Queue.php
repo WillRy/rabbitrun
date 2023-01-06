@@ -32,10 +32,11 @@ class Queue extends Base
     public $consumerName;
 
 
-    public function __construct(DriverAbstract $driver)
+    public function __construct(DriverAbstract $driver, Monitor $monitor = null)
     {
 
         $this->driver = $driver;
+        $this->monitor = $monitor;
 
         parent::__construct();
     }
@@ -139,15 +140,10 @@ class Queue extends Base
     public function consume(
         WorkerInterface $worker,
         int             $sleepSeconds = 3,
-        string          $consumerName = null,
-        ?Monitor        $monitor = null
+        string          $consumerName = null
     )
     {
         if ($sleepSeconds < 1) $sleepSeconds = 1;
-
-        if (!empty($monitor)) {
-            $this->monitor = $monitor;
-        }
 
         $this->loopConnection(function () use ($worker, $sleepSeconds, $consumerName) {
             $this->channel->basic_qos(null, 1, null);
@@ -161,6 +157,7 @@ class Queue extends Base
                 false,
                 function (AMQPMessage $message) use ($worker, $consumerName) {
                     print_r("[TASK RECEIVED]" . PHP_EOL);
+
                     $incomeData = json_decode($message->getBody(), true);
 
                     $taskID = !empty($incomeData['id']) ? $incomeData['id'] : null;
@@ -199,6 +196,7 @@ class Queue extends Base
                         return print_r("[SUCCESS]: $taskID" . PHP_EOL);
                     } catch (Exception $e) {
                         $task = new Task($this->driver, $message, $databaseData);
+
                         $task->nackError();
 
                         $worker->error($databaseData, $e);
@@ -214,15 +212,17 @@ class Queue extends Base
 
             // Loop as long as the channel has callbacks registered
             while ($this->channel->is_open()) {
+                sleep($sleepSeconds);
+
                 $this->startMonitor();
 
                 if ($this->monitor && !$this->monitor->workerIsRunning()) {
-                    print_r("[WORKER PAUSED]: " . $this->monitor->getItemName() . PHP_EOL);
+                    print_r("[WORKER PAUSED]: " . $this->monitor->consumerName . PHP_EOL);
                     continue;
                 }
 
                 $this->channel->wait(null, false);
-                sleep($sleepSeconds);
+
             }
 
 
