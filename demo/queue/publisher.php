@@ -27,7 +27,7 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
 
 for ($i = 0; $i <= 500; $i++) {
     $job = new \WillRy\RabbitRun\Queue\Job([
-        "id_email" => rand(),
+        "id_email" => $i,
         "conteudo" => "blablabla"
     ]);
 

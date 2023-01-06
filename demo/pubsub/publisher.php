@@ -17,7 +17,7 @@ for ($i = 0; $i <= 10; $i++) {
         ->createPubSub("pubsub_teste")
         ->publish(
             [
-                "id_email" => rand(),
+                "id_email" => $i,
                 "conteudo" => "blablabla"
             ]
         );

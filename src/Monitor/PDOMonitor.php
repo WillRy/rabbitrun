@@ -25,7 +25,7 @@ class PDOMonitor extends Monitor
 
     public function pauseWorker(): bool
     {
-        $this->insertConsumerIfNotExists($this->consumerName, Monitor::STATUS_STOPPED);
+        $this->insertConsumerIfNotExists(Monitor::STATUS_STOPPED);
 
         $stmt = $this->connection->prepare(
             "UPDATE {$this->entityName} SET status = :status, jobID = :jobID WHERE name = :name"
@@ -40,14 +40,14 @@ class PDOMonitor extends Monitor
 
     public function startWorker(): bool
     {
-        $this->insertConsumerIfNotExists($this->consumerName, Monitor::STATUS_RUNNING);
+        $this->insertConsumerIfNotExists(Monitor::STATUS_RUNNING);
 
         return true;
     }
 
     public function setWorkerItem($identificador): bool
     {
-        $this->insertConsumerIfNotExists($this->consumerName, Monitor::STATUS_RUNNING);
+        $this->insertConsumerIfNotExists(Monitor::STATUS_RUNNING);
 
         $stmt = $this->connection->prepare(
             "UPDATE {$this->entityName} SET status = :status, jobID = :jobID, modifiedAt = :modifiedAt WHERE name = :name"
