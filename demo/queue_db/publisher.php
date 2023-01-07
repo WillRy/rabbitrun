@@ -2,7 +2,9 @@
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\PubSub\PubSub())
+require_once __DIR__ . "/PdoDriver.php";
+
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
     ->configRabbit(
         "rabbitmq", //rabbitmq host
         "5672", //rabbitmq port
@@ -11,28 +13,26 @@ $worker = (new \WillRy\RabbitRun\PubSub\PubSub())
         "/" //rabbitmq vhost
     );
 
+$model = new PdoDriver();
 
-//$id = rand(0, 9999);
-//$payload = [
-//    "id" => $id,
-//    "id_email" => $id,
-//    "conteudo" => "blablabla"
-//];
-//
-//$worker
-//    ->createPubSubPublisher("pub_teste")
-//    ->publish($payload);
-//
-
-for ($i = 0; $i <= 500000; $i++) {
+for ($i = 0; $i <= 3; $i++) {
 
     $payload = [
-        "id" => $i,
         "id_email" => $i,
         "conteudo" => "blablabla"
     ];
 
+    $id = $model->insert(
+        'queue_teste',
+        $payload,
+        true,
+        3,
+        true
+    );
+
+    $payload['id'] = $id;
+
     $worker
-        ->createPubSubPublisher("pub_teste")
+        ->createQueue("queue_teste")
         ->publish($payload);
 }

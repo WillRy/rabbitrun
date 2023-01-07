@@ -39,17 +39,12 @@ class Connect
     {
         if (empty(self::$instance) || (!empty(self::$instance) && !self::$instance->isConnected())) {
             try {
-                self::$instance = AMQPStreamConnection::create_connection([
-                    [
-                        'host' => self::$opt["host"],
-                        'port' => self::$opt["port"],
-                        'user' => self::$opt["user"],
-                        'password' => self::$opt["pass"]
-                    ]
-                ], [
-                    'read_write_timeout' => 30,    // needs to be at least 2x heartbeat
-                    'heartbeat' => 15
-                ]);
+                self::$instance = new AMQPStreamConnection(
+                    self::$opt["host"],
+                    self::$opt["port"],
+                    self::$opt["user"],
+                    self::$opt["pass"]
+                );
             } catch (\Exception $exception) {
                 die('Connection error RabbitMQ' . $exception->getMessage());
             }
@@ -77,7 +72,7 @@ class Connect
             try {
                 self::$instance->close();
             } catch (\Exception $exception) {
-                die('Connection error RabbitMQ' . $exception->getMessage());
+                die('[ERROR CLOSE INSTANCE]' . $exception->getMessage());
             }
         }
     }
@@ -88,7 +83,7 @@ class Connect
             try {
                 self::$channel->close();
             } catch (\Exception $exception) {
-                die('Connection error RabbitMQ' . $exception->getMessage());
+                die('[ERROR CLOSE CHANNEL]' . $exception->getMessage());
             }
         }
     }

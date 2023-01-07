@@ -12,3 +12,5 @@ docker/redis
 .bash_history
 .composer
 docker/mongo
+
+demo/test

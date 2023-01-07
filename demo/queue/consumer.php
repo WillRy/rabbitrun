@@ -1,52 +1,10 @@
 <?php
 
+use PhpAmqpLib\Message\AMQPMessage;
+
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-require_once __DIR__ . "/EmailWorker.php";
-
-
-/**
- * Opcional
- * @var string $consumerName nome do consumer para ser usado no monitor
- */
-$consumerName = $_SERVER['argv'][1] ?? null;
-
-/**
- * Driver que irá espelhar os itens da fila para consultas de status/situação
- * Pode ser: PDO e MongoDB
- * @var  $driver
- */
-$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
-    'mysql',
-    'db',
-    'env_db',
-    'root',
-    'root',
-    3306
-);
-
-/**
- * Driver que irá espelhar os itens da fila para consultas de status/situação
- * Pode ser: PDO e MongoDB
- * @var  $driver
- */
-//$driver = new \WillRy\RabbitRun\Drivers\MongoDriver(
-//    "mongodb://root:root@mongo:27017/"
-//);
-
-/**
- * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
- * e indica também qual task está executando no mommento
- * Pode ser: PDO
- * @var $monitor
- */
-$monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
-    'queue_teste',
-    $consumerName
-);
-
-
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver, $monitor))
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
     ->configRabbit(
         "rabbitmq",
         "5672",
@@ -56,10 +14,62 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver, $monitor))
     );
 
 
+/**
+ * Executa quando o worker pega uma tarefa
+ *
+ * Retorna verdadeiro para o worker executar
+ * Retorna false para o worker ficar devolvendo os itens para a fila
+ *
+ * Utilidade: Dizer se o worker está ativo, com base em algum registro de banco de dados, monitor de serviços
+ * e etc
+ */
+$worker->onCheckStatus(function () {
+
+});
+
+/**
+ * Executa ao pegar um item na fila
+ * Se retornar false, o item é descartado
+ *
+ * Se não retornar nada ou verdadeiro, o item é processado no método onExecuting
+ */
+$worker->onReceive(function ($dados) {
+    $id = $dados['payload']['id'];
+    var_dump(['recebidos' => $id]);
+});
+
+/**
+ * Método que processa o item da fila
+ * É sempre necessária dar um destino a mensagem
+ *
+ * Fazer um $message->ack para marcar como "sucesso"
+ * Fazer um $message->nack() para descartar
+ * Fazer um $message->nack(true) para repor na fila
+ *
+ * Se alguma exception não for tratada, o item será recolocado
+ * na fila
+ */
+$worker->onExecuting(function (AMQPMessage $message, $dados) {
+    $id = $dados['payload']['id'];
+
+    var_dump(['processando' => $id]);
+
+    $number = rand(0, 10) % 2 === 0;
+    if ($number) throw new \Exception("Error");
+
+    $message->ack();
+});
+
+/**
+ * Método que executa automaticamente caso aconteça uma exception não tratada
+ * durante o processamento
+ */
+$worker->onError(function (\Exception $e, $dados) {
+    $id = $dados['payload']['id'];
+    var_dump(["erro" => $id]);
+});
+
+
 $worker
     ->createQueue("queue_teste")
-    ->consume(
-        new EmailWorker(),
-        3,
-        $consumerName
-    );
+    ->consume();

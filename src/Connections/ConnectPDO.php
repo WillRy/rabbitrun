@@ -27,9 +27,9 @@ class ConnectPDO
     {
     }
 
-    public static function getInstance()
+    public static function getInstance($forceNew = false)
     {
-        if (empty(self::$instance)) {
+        if (empty(self::$instance) || $forceNew) {
             try {
                 $driver = self::$opt["driver"];
                 $host = self::$opt["host"];

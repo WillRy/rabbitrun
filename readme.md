@@ -79,16 +79,8 @@ create table rabbit_monitor
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
-    'mysql',
-    'db',
-    'env_db',
-    'root',
-    'root',
-    3306
-);
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
     ->configRabbit(
         "rabbitmq", //rabbitmq host
         "5672", //rabbitmq port
@@ -97,20 +89,18 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
         "/" //rabbitmq vhost
     );
 
-for ($i = 0; $i <= 9; $i++) {
-    $job = new \WillRy\RabbitRun\Queue\Job([
-        "id_email" => rand(),
-        "conteudo" => "blablabla"
-    ]);
 
-    /** optional */
-    $job->setRequeueOnError(true);
-    $job->setMaxRetries(3);
-    $job->setAutoDelete(true);
+for ($i = 0; $i <= 3; $i++) {
+
+    $payload = [
+        "id" => $i,
+        "id_email" => $i,
+        "conteudo" => "blablabla"
+    ];
 
     $worker
         ->createQueue("queue_teste")
-        ->publish($job);
+        ->publish($payload);
 }
 
 ```
@@ -124,80 +114,9 @@ for ($i = 0; $i <= 9; $i++) {
 
 use PhpAmqpLib\Message\AMQPMessage;
 
-class EmailWorker implements \WillRy\RabbitRun\Queue\WorkerInterface
-{
-
-    public function handle(\WillRy\RabbitRun\Queue\Task $data)
-    {
-        $body = $data->getData();
-        $database = $data->getDatabaseData();
-
-        /**
-         * Fazer o processamento que for necessário
-         */
-
-        //simulando um erro qualquer para exemplo
-        $fakeException = rand() % 2 === 0;
-        if ($fakeException) throw new \Exception("=== Erro ===");
-
-        /** Marca o item como sucesso */
-        $data->ack();
-
-
-        /** Marca o item como erro */
-        //$data->nackError();
-
-        /** Marca o item como cancelado */
-        //$data->nackCancel();
-    }
-
-
-    public function error(array $databaseData, Exception $error = null)
-    {
-
-    }
-}
-
-```
-
-- Criar script que consome a fila
-
-```php
-<?php
-
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-require_once __DIR__ . "/EmailWorker.php";
-
-
-/**
- * Driver que irá espelhar os itens da fila para consultas de status/situação
- * Pode ser: PDO e MongoDB
- * @var  $driver
- */
-$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
-    'mysql',
-    'db',
-    'env_db',
-    'root',
-    'root',
-    3306
-);
-
-/**
- * Driver que irá espelhar os itens da fila para consultas de status/situação
- * Pode ser: PDO e MongoDB
- * @var  $driver
- */
-//$driver = new \WillRy\RabbitRun\Drivers\MongoDriver(
-//    "mongodb://root:root@mongo:27017/"
-//);
-
-
-
-
-
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
     ->configRabbit(
         "rabbitmq",
         "5672",
@@ -208,31 +127,64 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
 
 
 /**
- * Opcional
- * @var string $consumerName nome do consumer para ser usado no monitor
+ * Executa quando o worker pega uma tarefa
+ *
+ * Retorna verdadeiro para o worker executar
+ * Retorna false para o worker ficar devolvendo os itens para a fila
+ *
+ * Utilidade: Dizer se o worker está ativo, com base em algum registro de banco de dados, monitor de serviços
+ * e etc
  */
-$consumerName = $_SERVER['argv'][1] ?? null;
+$worker->onCheckStatus(function () {
+
+});
 
 /**
- * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
- * e indica também qual task está executando no mommento
- * Pode ser: PDO
- * @var $monitor
+ * Executa ao pegar um item na fila
+ * Se retornar false, o item é descartado
+ *
+ * Se não retornar nada ou verdadeiro, o item é processado no método onExecuting
  */
-$monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
-    'queue_teste',
-    $consumerName
-);
+$worker->onReceive(function ($dados) {
+    $id = $dados['payload']['id'];
+    var_dump(['recebidos' => $id]);
+});
+
+/**
+ * Método que processa o item da fila
+ * É sempre necessária dar um destino a mensagem
+ *
+ * Fazer um $message->ack para marcar como "sucesso"
+ * Fazer um $message->nack() para descartar
+ * Fazer um $message->nack(true) para repor na fila
+ *
+ * Se alguma exception não for tratada, o item será recolocado
+ * na fila
+ */
+$worker->onExecuting(function (AMQPMessage $message, $dados) {
+    $id = $dados['payload']['id'];
+
+    var_dump(['processando' => $id]);
+
+    $number = rand(0, 10) % 2 === 0;
+    if ($number) throw new \Exception("Error");
+
+    $message->ack();
+});
+
+/**
+ * Método que executa automaticamente caso aconteça uma exception não tratada
+ * durante o processamento
+ */
+$worker->onError(function (\Exception $e, $dados) {
+    $id = $dados['payload']['id'];
+    var_dump(["erro" => $id]);
+});
 
 
 $worker
     ->createQueue("queue_teste")
-    ->consume(
-        new EmailWorker(),
-        3,
-        $consumerName,
-        $monitor //opcional
-    );
+    ->consume();
 
 ```
 
@@ -257,7 +209,11 @@ como **erro** e seja **recolocado na fila** se necessário
 
 ## Demonstração
 
-Dentro desse repositório tem a pasta **demo**, contendo dois arquivos:
+Dentro desse repositório tem a pasta **demo**, nela tem 3 exemplos:
+
+- queue: consumer e publisher simples
+- queue_db: consumer e publisher que mantém espelho/monitoramento da fila no banco de dados
+- pubsub: consumer e publisher no modelo pubsub
 
 - **publisher.php**: Arquivo que publica itens na fila
 - **consumer.php**: Arquivo que consome itens na fila, podendo ter várias instâncias
