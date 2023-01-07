@@ -12,14 +12,27 @@ $worker = (new \WillRy\RabbitRun\PubSub\PubSub())
     );
 
 
-for ($i = 0; $i <= 10; $i++) {
+//$id = rand(0, 9999);
+//$payload = [
+//    "id" => $id,
+//    "id_email" => $id,
+//    "conteudo" => "blablabla"
+//];
+//
+//$worker
+//    ->createPubSubPublisher("pub_teste")
+//    ->publish($payload);
+//
+
+for ($i = 0; $i <= 50; $i++) {
+
+    $payload = [
+        "id" => $i,
+        "id_email" => $i,
+        "conteudo" => "blablabla"
+    ];
+
     $worker
-        ->createPubSub("pubsub_teste")
-        ->publish(
-            [
-                "id_email" => $i,
-                "conteudo" => "blablabla"
-            ]
-        );
-    sleep(2);
+        ->createPubSubPublisher("pub_teste")
+        ->publish($payload);
 }

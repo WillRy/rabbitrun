@@ -27,9 +27,9 @@ class ConnectMongo
     {
     }
 
-    public static function getInstance(): ?Client
+    public static function getInstance($forceNew = false): ?Client
     {
-        if (empty(self::$instance)) {
+        if (empty(self::$instance) || $forceNew) {
             self::$instance = new Client(self::$opt["uri"]);
         }
 

@@ -1,6 +1,6 @@
 {
     "name": "willry/rabbitrun",
-    "description": "Fila, mensageria e pub/sub com rabbitmq",
+    "description": "Fila, mensageria e pub/sub com RabbitMQ",
     "license": "MIT",
     "keywords": [
         "rabbitmq",
@@ -26,7 +26,6 @@
         "ext-json": "*"
     },
     "suggest": {
-        "mongodb/mongodb": "^1.13",
-        "predis/predis": "^2.0"
+        "mongodb/mongodb": "^1.13"
     }
 }

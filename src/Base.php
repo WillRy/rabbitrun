@@ -25,9 +25,6 @@ class Base
 
     public function __construct()
     {
-        register_shutdown_function(function () {
-            $this->cleanConnection();
-        });
 
         /**
          * Graceful shutdown
@@ -158,7 +155,7 @@ class Base
      * @param false $durable
      * @param false $exclusive
      * @param bool $auto_delete
-     * @return $this
+     * @return array|null
      */
     public function queue(
         string $queue = '',
@@ -168,7 +165,7 @@ class Base
         bool   $auto_delete = false
     )
     {
-        $this->channel->queue_declare(
+        return $this->channel->queue_declare(
             $queue,
             $passive,
             $durable,
@@ -176,7 +173,6 @@ class Base
             $auto_delete,
             false
         );
-        return $this;
     }
 
     /**
@@ -205,19 +201,19 @@ class Base
                 $this->getConnection();
                 $callback();
             } catch (AMQPRuntimeException $e) {
-                echo "RuntimeException :" . $e->getMessage() . PHP_EOL;
+                echo "RuntimeException :" . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             } catch (\RuntimeException $e) {
-                echo 'Runtime exception ' . $e->getMessage() . PHP_EOL;
+                echo 'Runtime exception ' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             } catch (\ErrorException $e) {
-                echo 'Error exception ' . $e->getMessage() . PHP_EOL;
+                echo 'Error exception ' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             } catch (\Exception $e) {
-                echo 'Exception ' . $e->getMessage() . PHP_EOL;
+                echo 'Exception ' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             }

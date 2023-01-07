@@ -14,7 +14,7 @@ tarefa entre eles.
 ## Requisitos
 
 - MySQL
-- PHP >= 7.3 com PDO
+- PHP >= 8.0 com PDO
 - RabbitMQ >= 3.8 (Filas do tipo Quorum são necessárias)
 
 ## Demonstração
@@ -23,12 +23,152 @@ tarefa entre eles.
 
 ![Painel administrativo](./midia/rabbitmq.png)
 
-## Criar tabela de background jobs
+
+## Como publicar itens na fila
+
+```php
+<?php
+
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
+    ->configRabbit(
+        "rabbitmq", //rabbitmq host
+        "5672", //rabbitmq port
+        "admin", //rabbitmq user
+        "admin", //rabbitmq password
+        "/" //rabbitmq vhost
+    );
+
+
+for ($i = 0; $i <= 3; $i++) {
+
+    $payload = [
+        "id" => $i,
+        "id_email" => $i,
+        "conteudo" => "blablabla"
+    ];
+
+    $worker
+        ->createQueue("queue_teste")
+        ->publish($payload);
+}
+
+```
+
+## Como consumir itens da fila?
+
+- Criar a classe de worker responsavel pelo processament **(Implementar a interface WorkerInterface)**
+
+```php
+<?php
+
+use PhpAmqpLib\Message\AMQPMessage;
+
+require_once __DIR__ . '/../../vendor/autoload.php';
+
+$worker = (new \WillRy\RabbitRun\Queue\Queue())
+    ->configRabbit(
+        "rabbitmq",
+        "5672",
+        "admin",
+        "admin",
+        "/"
+    );
+
+
+/**
+ * Executa quando o worker pega uma tarefa
+ *
+ * Retorna verdadeiro para o worker executar
+ * Retorna false para o worker ficar devolvendo os itens para a fila
+ *
+ * Utilidade: Dizer se o worker está ativo, com base em algum registro de banco de dados, monitor de serviços
+ * e etc
+ */
+$worker->onCheckStatus(function () {
+
+});
+
+/**
+ * Executa ao pegar um item na fila
+ * Se retornar false, o item é descartado
+ *
+ * Se não retornar nada ou verdadeiro, o item é processado no método onExecuting
+ */
+$worker->onReceive(function ($dados) {
+    echo ' [x] [  receive  ] ', json_encode($dados), "\n";
+});
+
+/**
+ * Método que processa o item da fila
+ * É sempre necessária dar um destino a mensagem
+ *
+ * Fazer um $message->ack para marcar como "sucesso"
+ * Fazer um $message->nack() para descartar
+ * Fazer um $message->nack(true) para repor na fila
+ *
+ * Se alguma exception não for tratada, o item será recolocado
+ * na fila
+ */
+$worker->onExecuting(function (AMQPMessage $message, $dados) {
+
+    echo ' [x] [ executing ] ', json_encode($dados), "\n";
+
+//    $number = rand(0, 10) % 2 === 0;
+//    if ($number) throw new \Exception("Error");
+
+    $message->ack();
+});
+
+/**
+ * Método que executa automaticamente caso aconteça uma exception não tratada
+ * durante o processamento
+ */
+$worker->onError(function (\Exception $e, $dados) {
+    echo ' [x] [   error   ] ', json_encode($dados), "\n";
+});
+
+
+$worker
+    ->createQueue("queue_teste")
+    ->consume();
+
+```
+
+## OBRIGATÓRIO
+
+- Sempre execute um: **nack** ou **ack** para que a tarefa tenha um tratamento e não fique
+  infinito na fila.
+
+- nack(): marca como erro
+- nack(true): marca como erro e coloca novamete na fila
+- ack(): marca a tarefa como concluida
+
+## Demonstração
+
+Dentro desse repositório tem a pasta **demo**, nela tem 3 exemplos:
+
+- queue: consumer e publisher simples
+- queue_db: consumer e publisher que mantém espelho/monitoramento da fila no banco de dados
+- pubsub: consumer e publisher no modelo pubsub
+
+- **publisher.php**: Arquivo que publica itens na fila
+- **consumer.php**: Arquivo que consome itens na fila, podendo ter várias instâncias
+
+
+
+## Exemplo com banco de dados
+
+Na pasta **demo/queue_db** tem um exemplo que utiliza o RabbitMQ junto
+do banco de dados, com o objetivo de:
+
+- Espelhar a fila no banco de dados (permite excluir um item na fila e ver a situação de cada uma)
+- Monitorar o que os workers estão fazendo
+- Poder pausar temporariamente a execução dos workers via banco
 
 Ao usar o PDO como driver de espelhamento de fila, deve ser criado as tabelas.
-
-Caso use o Driver do MongoDB, não será necessário criar as collections, pois elas são
-criadas automaticamente
 
 ```sql
 drop table if exists jobs;
@@ -67,193 +207,3 @@ create table rabbit_monitor
 );
 
 ```
-
-## Como publicar itens na fila
-
-```php
-<?php
-
-require_once __DIR__ . '/../../vendor/autoload.php';
-
-$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
-    'mysql',
-    'db',
-    'env_db',
-    'root',
-    'root',
-    3306
-);
-
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
-    ->configRabbit(
-        "rabbitmq", //rabbitmq host
-        "5672", //rabbitmq port
-        "admin", //rabbitmq user
-        "admin", //rabbitmq password
-        "/" //rabbitmq vhost
-    );
-
-for ($i = 0; $i <= 9; $i++) {
-    $job = new \WillRy\RabbitRun\Queue\Job([
-        "id_email" => rand(),
-        "conteudo" => "blablabla"
-    ]);
-
-    /** optional */
-    $job->setRequeueOnError(true);
-    $job->setMaxRetries(3);
-    $job->setAutoDelete(true);
-
-    $worker
-        ->createQueue("queue_teste")
-        ->publish($job);
-}
-
-```
-
-## Como consumir itens da fila?
-
-- Criar a classe de worker responsavel pelo processament **(Implementar a interface WorkerInterface)**
-
-```php
-<?php
-
-use PhpAmqpLib\Message\AMQPMessage;
-
-class EmailWorker implements \WillRy\RabbitRun\Queue\WorkerInterface
-{
-
-    public function handle(\WillRy\RabbitRun\Queue\Task $data)
-    {
-        $body = $data->getData();
-        $database = $data->getDatabaseData();
-
-        /**
-         * Fazer o processamento que for necessário
-         */
-
-        //simulando um erro qualquer para exemplo
-        $fakeException = rand() % 2 === 0;
-        if ($fakeException) throw new \Exception("=== Erro ===");
-
-        /** Marca o item como sucesso */
-        $data->ack();
-
-
-        /** Marca o item como erro */
-        //$data->nackError();
-
-        /** Marca o item como cancelado */
-        //$data->nackCancel();
-    }
-
-
-    public function error(array $databaseData, Exception $error = null)
-    {
-
-    }
-}
-
-```
-
-- Criar script que consome a fila
-
-```php
-<?php
-
-require_once __DIR__ . '/../../vendor/autoload.php';
-
-require_once __DIR__ . "/EmailWorker.php";
-
-
-/**
- * Driver que irá espelhar os itens da fila para consultas de status/situação
- * Pode ser: PDO e MongoDB
- * @var  $driver
- */
-$driver = new \WillRy\RabbitRun\Drivers\PdoDriver(
-    'mysql',
-    'db',
-    'env_db',
-    'root',
-    'root',
-    3306
-);
-
-/**
- * Driver que irá espelhar os itens da fila para consultas de status/situação
- * Pode ser: PDO e MongoDB
- * @var  $driver
- */
-//$driver = new \WillRy\RabbitRun\Drivers\MongoDriver(
-//    "mongodb://root:root@mongo:27017/"
-//);
-
-
-
-
-
-$worker = (new \WillRy\RabbitRun\Queue\Queue($driver))
-    ->configRabbit(
-        "rabbitmq",
-        "5672",
-        "admin",
-        "admin",
-        "/"
-    );
-
-
-/**
- * Opcional
- * @var string $consumerName nome do consumer para ser usado no monitor
- */
-$consumerName = $_SERVER['argv'][1] ?? null;
-
-/**
- * Monitor[OPCIONAL] que irá conter os status de cada worker, podendo ser iniciado, pausado
- * e indica também qual task está executando no mommento
- * Pode ser: PDO
- * @var $monitor
- */
-$monitor = new \WillRy\RabbitRun\Monitor\PDOMonitor(
-    'queue_teste',
-    $consumerName
-);
-
-
-$worker
-    ->createQueue("queue_teste")
-    ->consume(
-        new EmailWorker(),
-        3,
-        $consumerName,
-        $monitor //opcional
-    );
-
-```
-
-## Tratamento de erros e sucesso
-
-Dentro da classe de worker, deverá ser implementada a interface **WorkerInterface**, que torna obrigatório 2 metodos:
-
-- **handle:** Processa a tarefa
-- **error:** Callback executado quando ocorre um erro
-
-Todos **as exceptions lançadas no método handle**, serão interceptadas automaticamente para que o item seja marcado
-como **erro** e seja **recolocado na fila** se necessário
-
-## OBRIGATÓRIO
-
-- Sempre execute um: **nack**, **nackCancel** ou **nackError** para que a tarefa tenha um tratamento e não fique
-  infinito na fila.
-
-- nack: marca como sucesso
-- nackCancel: marca a tarefa como cancelada
-- nackError: marca a tarefa como erro, tratando automaticamente o requeue
-
-## Demonstração
-
-Dentro desse repositório tem a pasta **demo**, contendo dois arquivos:
-
-- **publisher.php**: Arquivo que publica itens na fila
-- **consumer.php**: Arquivo que consome itens na fila, podendo ter várias instâncias

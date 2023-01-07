@@ -2,24 +2,34 @@
 
 namespace WillRy\RabbitRun\PubSub;
 
+
+use Exception;
 use PhpAmqpLib\Message\AMQPMessage;
 use WillRy\RabbitRun\Traits\Helpers;
 
 class PubSub extends \WillRy\RabbitRun\Base
 {
-    use Helpers;
-
-    /** @var string nome da queue */
-    protected $name;
+    /** @var string nome da fila */
+    protected string $queueName;
 
     /** @var string nome da exchange */
-    protected $exchangeName;
+    protected string $exchangeBaseName;
+
+    protected string $exchangeName;
+
+    public \Closure $onReceiveCallback;
+
+    public \Closure $onExecutingCallback;
+
+    public \Closure $onErrorCallback;
+
+    public \Closure $onCheckStatusCallback;
 
     public function __construct()
     {
         parent::__construct();
 
-        $this->name = $this->randomConsumer(12);
+        $this->queueName = $this->randomConsumer(12);
     }
 
     /**
@@ -28,17 +38,42 @@ class PubSub extends \WillRy\RabbitRun\Base
      * @param string $name
      * @return $this
      */
-    public function createPubSub(string $name): PubSub
+    public function createPubSubPublisher(string $name): PubSub
     {
         $this->getConnection();
 
         $this->exchangeName = "{$name}_exchange";
 
-        $this->exchange($this->exchangeName, 'fanout', false, true, true);
+        $this->exchangeBaseName = "{$name}";
 
-        $this->queue($this->name, false, false, true, true);
+        $this->exchange($this->exchangeName, 'fanout', false, false, false);
 
-        $this->bind($this->name, $this->exchangeName);
+        return $this;
+    }
+
+    /**
+     * Configura o pubsub criando
+     * a exchenge e fila
+     * @param string $name
+     * @return $this
+     */
+    public function createPubSubConsumer(string $name): PubSub
+    {
+        $this->getConnection();
+
+        $this->exchangeName = "{$name}_exchange";
+
+        $this->exchangeBaseName = "{$name}";
+
+        $this->exchange($this->exchangeName, 'fanout', false, false, false);
+
+        $defaultQueueName = !empty($this->queueName) ? $this->queueName : '';
+        list($queueName, ,) = $this->queue($defaultQueueName, false, false, true, true);
+
+        $this->queueName = $queueName;
+
+
+        $this->bind($this->queueName, $this->exchangeName);
 
         return $this;
     }
@@ -52,10 +87,7 @@ class PubSub extends \WillRy\RabbitRun\Base
     {
         $json = json_encode($payload);
 
-        $message = new AMQPMessage(
-            $json,
-            array('content_type' => 'text/plain', 'delivery_mode' => AMQPMessage::DELIVERY_MODE_NON_PERSISTENT)
-        );
+        $message = new AMQPMessage($json);
 
         $this->channel->basic_publish(
             $message,
@@ -66,44 +98,67 @@ class PubSub extends \WillRy\RabbitRun\Base
     }
 
     /**
-     * Consome os itens no pubsub
-     * @param $worker
-     * @throws \Exception
+     * Loop de consumo de mensagem
+     *
+     * @param int $sleepSeconds
+     * @throws Exception
      */
     public function consume(
-        WorkerInterface $worker,
-        int             $sleepSeconds = 2
+        int $sleepSeconds = 3
     )
     {
+        if ($sleepSeconds < 1) $sleepSeconds = 1;
 
-        $this->loopConnection(function () use ($worker, $sleepSeconds) {
+        $this->loopConnection(function () use ($sleepSeconds) {
 
             /** como no pubsub ao perder a conexão, a fila exclusiva é excluida, é necessário configurar
              * fila e etc novamente
              */
-            $this->createPubSub($this->name);
+            $this->createPubSubConsumer($this->exchangeBaseName);
 
             $this->channel->basic_qos(null, 1, null);
 
             $this->channel->basic_consume(
-                $this->name,
-                $this->name,
+                $this->queueName,
+                '',
                 false,
                 true,
                 false,
                 false,
-                function (AMQPMessage $message) use ($worker) {
-                    print_r("[TASK RECEIVED]" . PHP_EOL);
+                function (AMQPMessage $message) {
+                    //se o status for negativo, não executa o consumo
+                    $checkStatusCallback = $this->onCheckStatusCallback;
+                    $statusBoolean = $checkStatusCallback();
+
+                    if (!$statusBoolean && isset($statusBoolean)) {
+                        print_r("[WORKER STOPPED]" . PHP_EOL);
+                        return false;
+                    }
+
                     $incomeData = json_decode($message->getBody(), true);
 
-                    try {
-                        $worker->handle(new Task($message, $incomeData));
-                        return print_r("[SUCCESS]" . PHP_EOL);
-                    } catch (\Exception $e) {
-                        $worker->error($incomeData);
+                    $receiveCallback = $this->onReceiveCallback;
+                    $statusBoolean = $receiveCallback($incomeData);
 
-                        return print_r("[ERROR]: " . $e->getMessage() . PHP_EOL);
+                    if (!$statusBoolean && isset($statusBoolean)) {
+                        print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
+                        return false;
                     }
+
+
+                    try {
+                        $executingCallback = $this->onExecutingCallback;
+                        $executingCallback($message, $incomeData);
+
+
+                    } catch (Exception $e) {
+                        print_r("[ERROR]" . PHP_EOL);
+
+                        $errorCallback = $this->onErrorCallback;
+                        $errorCallback($e, $incomeData);
+                    }
+
+
                 }
             );
 
@@ -113,6 +168,28 @@ class PubSub extends \WillRy\RabbitRun\Base
                 sleep($sleepSeconds);
             }
 
+
         });
+
+    }
+
+    public function onCheckStatus(\Closure $callback)
+    {
+        $this->onCheckStatusCallback = $callback;
+    }
+
+    public function onReceive(\Closure $callback)
+    {
+        $this->onReceiveCallback = $callback;
+    }
+
+    public function onExecuting(\Closure $callback)
+    {
+        $this->onExecutingCallback = $callback;
+    }
+
+    public function onError(\Closure $callback)
+    {
+        $this->onErrorCallback = $callback;
     }
 }
