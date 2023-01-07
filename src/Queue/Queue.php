@@ -21,13 +21,13 @@ class Queue extends Base
     /** @var string nome do consumer */
     public $consumerName;
 
-    public \Closure $onReceiveCallback;
+    protected \Closure $onReceiveCallback;
 
-    public \Closure $onExecutingCallback;
+    protected \Closure $onExecutingCallback;
 
-    public \Closure $onErrorCallback;
+    protected \Closure $onErrorCallback;
 
-    public \Closure $onCheckStatusCallback;
+    protected \Closure $onCheckStatusCallback;
 
     public function __construct()
     {
@@ -110,8 +110,11 @@ class Queue extends Base
         int $sleepSeconds = 3
     )
     {
-//        if ($sleepSeconds < 1) $sleepSeconds = 1;
-        $sleepSeconds = 0;
+        if ($sleepSeconds < 1) $sleepSeconds = 1;
+
+        if (empty($this->onExecutingCallback)) {
+            throw new \Exception("Define a onExecuting callback");
+        }
 
         $this->loopConnection(function () use ($sleepSeconds) {
             $this->channel->basic_qos(null, 1, null);
@@ -164,7 +167,6 @@ class Queue extends Base
 
             // Loop as long as the channel has callbacks registered
             while ($this->channel->is_open()) {
-
                 $this->channel->wait(null, false);
                 sleep($sleepSeconds);
             }
