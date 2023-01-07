@@ -34,8 +34,7 @@ $worker->onCheckStatus(function () {
  * Se não retornar nada ou verdadeiro, o item é processado no método onExecuting
  */
 $worker->onReceive(function ($dados) {
-    $id = $dados['payload']['id'];
-    var_dump(['recebidos' => $id]);
+    echo ' [x] [  receive  ] ', json_encode($dados), "\n";
 });
 
 /**
@@ -50,12 +49,11 @@ $worker->onReceive(function ($dados) {
  * na fila
  */
 $worker->onExecuting(function (AMQPMessage $message, $dados) {
-    $id = $dados['payload']['id'];
 
-    var_dump(['processando' => $id]);
+    echo ' [x] [ executing ] ', json_encode($dados), "\n";
 
-    $number = rand(0, 10) % 2 === 0;
-    if ($number) throw new \Exception("Error");
+//    $number = rand(0, 10) % 2 === 0;
+//    if ($number) throw new \Exception("Error");
 
     $message->ack();
 });
@@ -65,8 +63,7 @@ $worker->onExecuting(function (AMQPMessage $message, $dados) {
  * durante o processamento
  */
 $worker->onError(function (\Exception $e, $dados) {
-    $id = $dados['payload']['id'];
-    var_dump(["erro" => $id]);
+    echo ' [x] [   error   ] ', json_encode($dados), "\n";
 });
 
 

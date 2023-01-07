@@ -24,7 +24,7 @@ $worker = (new \WillRy\RabbitRun\PubSub\PubSub())
 //    ->publish($payload);
 //
 
-for ($i = 0; $i <= 500000; $i++) {
+for ($i = 0; $i <= 50; $i++) {
 
     $payload = [
         "id" => $i,

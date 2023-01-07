@@ -110,7 +110,8 @@ class Queue extends Base
         int $sleepSeconds = 3
     )
     {
-        if ($sleepSeconds < 1) $sleepSeconds = 1;
+//        if ($sleepSeconds < 1) $sleepSeconds = 1;
+        $sleepSeconds = 0;
 
         $this->loopConnection(function () use ($sleepSeconds) {
             $this->channel->basic_qos(null, 1, null);
@@ -132,7 +133,6 @@ class Queue extends Base
                         return $message->nack(true);
                     }
 
-                    print_r("[TASK RECEIVED]" . PHP_EOL);
 
                     $incomeData = json_decode($message->getBody(), true);
                     $taskID = !empty($incomeData['id']) ? $incomeData['id'] : null;
@@ -152,11 +152,9 @@ class Queue extends Base
                         $executingCallback = $this->onExecutingCallback;
                         $executingCallback($message, $incomeData);
 
-                        print_r("[SUCCESS]" . PHP_EOL);
                     } catch (Exception $e) {
                         $message->nack(true);
 
-                        print_r("[ERROR]" . PHP_EOL);
 
                         $errorCallback = $this->onErrorCallback;
                         $errorCallback($e, $incomeData);

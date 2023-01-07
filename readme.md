@@ -14,7 +14,7 @@ tarefa entre eles.
 ## Requisitos
 
 - MySQL
-- PHP >= 7.3 com PDO
+- PHP >= 8.0 com PDO
 - RabbitMQ >= 3.8 (Filas do tipo Quorum são necessárias)
 
 ## Demonstração
@@ -27,50 +27,6 @@ tarefa entre eles.
 
 ![Uso de hardware](./midia/queue-02.png)
 
-## Criar tabela de background jobs
-
-Ao usar o PDO como driver de espelhamento de fila, deve ser criado as tabelas.
-
-Caso use o Driver do MongoDB, não será necessário criar as collections, pois elas são
-criadas automaticamente
-
-```sql
-drop table if exists jobs;
-
-create table jobs
-(
-    id              bigint auto_increment primary key,
-    queue           varchar(255) not NULL COMMENT 'queue name',
-    payload         text         not NULL COMMENT 'json content, filter with JSON_EXTRACT',
-    retries         int          not null default 0,
-    max_retries     int          not null default 10,
-    requeue_error   boolean               default true,
-    last_error      text COMMENT 'last error description',
-    status_desc     text COMMENT 'cancel/other status reason',
-    id_owner        bigint COMMENT 'ID to determine the owner (user) of the item in the queue',
-    id_object       bigint COMMENT 'ID to determine which object the queue item came from (ex: user, product and etc)r',
-    auto_delete_end boolean               default false,
-    status          enum('waiting','processing','canceled','error','success') default 'waiting',
-    start_at        datetime,
-    end_at          datetime,
-    INDEX           idx_id_object (id_object),
-    INDEX           idx_queue (queue),
-    INDEX           idx_id_owner (id_owner)
-);
-
-drop table if exists rabbit_monitor;
-
-create table rabbit_monitor
-(
-    id         bigint primary key auto_increment,
-    name       varchar(255) not null,
-    status     int          not null default 0,
-    jobID      varchar(255) null,
-    groupName  varchar(255) not null,
-    modifiedAt datetime null
-);
-
-```
 
 ## Como publicar itens na fila
 
@@ -146,8 +102,7 @@ $worker->onCheckStatus(function () {
  * Se não retornar nada ou verdadeiro, o item é processado no método onExecuting
  */
 $worker->onReceive(function ($dados) {
-    $id = $dados['payload']['id'];
-    var_dump(['recebidos' => $id]);
+    echo ' [x] [  receive  ] ', json_encode($dados), "\n";
 });
 
 /**
@@ -162,12 +117,11 @@ $worker->onReceive(function ($dados) {
  * na fila
  */
 $worker->onExecuting(function (AMQPMessage $message, $dados) {
-    $id = $dados['payload']['id'];
 
-    var_dump(['processando' => $id]);
+    echo ' [x] [ executing ] ', json_encode($dados), "\n";
 
-    $number = rand(0, 10) % 2 === 0;
-    if ($number) throw new \Exception("Error");
+//    $number = rand(0, 10) % 2 === 0;
+//    if ($number) throw new \Exception("Error");
 
     $message->ack();
 });
@@ -177,8 +131,7 @@ $worker->onExecuting(function (AMQPMessage $message, $dados) {
  * durante o processamento
  */
 $worker->onError(function (\Exception $e, $dados) {
-    $id = $dados['payload']['id'];
-    var_dump(["erro" => $id]);
+    echo ' [x] [   error   ] ', json_encode($dados), "\n";
 });
 
 
@@ -188,24 +141,14 @@ $worker
 
 ```
 
-## Tratamento de erros e sucesso
-
-Dentro da classe de worker, deverá ser implementada a interface **WorkerInterface**, que torna obrigatório 2 metodos:
-
-- **handle:** Processa a tarefa
-- **error:** Callback executado quando ocorre um erro
-
-Todos **as exceptions lançadas no método handle**, serão interceptadas automaticamente para que o item seja marcado
-como **erro** e seja **recolocado na fila** se necessário
-
 ## OBRIGATÓRIO
 
-- Sempre execute um: **nack**, **nackCancel** ou **nackError** para que a tarefa tenha um tratamento e não fique
+- Sempre execute um: **nack** ou **ack** para que a tarefa tenha um tratamento e não fique
   infinito na fila.
 
-- nack: marca como sucesso
-- nackCancel: marca a tarefa como cancelada
-- nackError: marca a tarefa como erro, tratando automaticamente o requeue
+- nack(): marca como erro
+- nack(true): marca como erro e coloca novamete na fila
+- ack(): marca a tarefa como concluida
 
 ## Demonstração
 
@@ -217,3 +160,54 @@ Dentro desse repositório tem a pasta **demo**, nela tem 3 exemplos:
 
 - **publisher.php**: Arquivo que publica itens na fila
 - **consumer.php**: Arquivo que consome itens na fila, podendo ter várias instâncias
+
+
+
+## Exemplo com banco de dados
+
+Na pasta **demo/queue_db** tem um exemplo que utiliza o RabbitMQ junto
+do banco de dados, com o objetivo de:
+
+- Espelhar a fila no banco de dados (permite excluir um item na fila e ver a situação de cada uma)
+- Monitorar o que os workers estão fazendo
+- Poder pausar temporariamente a execução dos workers via banco
+
+Ao usar o PDO como driver de espelhamento de fila, deve ser criado as tabelas.
+
+```sql
+drop table if exists jobs;
+
+create table jobs
+(
+    id              bigint auto_increment primary key,
+    queue           varchar(255) not NULL COMMENT 'queue name',
+    payload         text         not NULL COMMENT 'json content, filter with JSON_EXTRACT',
+    retries         int          not null default 0,
+    max_retries     int          not null default 10,
+    requeue_error   boolean               default true,
+    last_error      text COMMENT 'last error description',
+    status_desc     text COMMENT 'cancel/other status reason',
+    id_owner        bigint COMMENT 'ID to determine the owner (user) of the item in the queue',
+    id_object       bigint COMMENT 'ID to determine which object the queue item came from (ex: user, product and etc)r',
+    auto_delete_end boolean               default false,
+    status          enum('waiting','processing','canceled','error','success') default 'waiting',
+    start_at        datetime,
+    end_at          datetime,
+    INDEX           idx_id_object (id_object),
+    INDEX           idx_queue (queue),
+    INDEX           idx_id_owner (id_owner)
+);
+
+drop table if exists rabbit_monitor;
+
+create table rabbit_monitor
+(
+    id         bigint primary key auto_increment,
+    name       varchar(255) not null,
+    status     int          not null default 0,
+    jobID      varchar(255) null,
+    groupName  varchar(255) not null,
+    modifiedAt datetime null
+);
+
+```
