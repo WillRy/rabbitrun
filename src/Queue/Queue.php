@@ -70,10 +70,13 @@ class Queue extends Base
      * @throws Exception
      */
     public function publish(
+        string $queueName,
         array $job
     )
     {
         try {
+            $this->createQueue($queueName);
+            
             $this->getConnection();
 
             $payload = [
@@ -107,7 +110,8 @@ class Queue extends Base
      * @throws Exception
      */
     public function consume(
-        int $sleepSeconds = 3
+        string $queueName,
+        int    $sleepSeconds = 3
     )
     {
         if ($sleepSeconds < 1) $sleepSeconds = 1;
@@ -116,7 +120,10 @@ class Queue extends Base
             throw new \Exception("Define a onExecuting callback");
         }
 
-        $this->loopConnection(function () use ($sleepSeconds) {
+        $this->loopConnection(function () use ($sleepSeconds, $queueName) {
+
+            $this->createQueue($queueName);
+
             $this->channel->basic_qos(null, 1, null);
 
             $this->channel->basic_consume(

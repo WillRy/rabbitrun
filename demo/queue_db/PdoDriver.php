@@ -59,6 +59,38 @@ class PdoDriver
         $stmt->execute();
     }
 
+
+    public function setError(int $id, string $error)
+    {
+        $stmt = $this->db->prepare("update " . $this->entity . " set last_error = ? where id = ?");
+        $stmt->bindValue(1, $error, \PDO::PARAM_INT);
+        $stmt->bindValue(2, $id, \PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    public function delete(int $id)
+    {
+        $stmt = $this->db->prepare("DELETE FROM " . $this->entity . " where id = ?");
+        $stmt->bindValue(1, $id, \PDO::PARAM_INT);
+        $stmt->execute();
+    }
+
+    public function checkDelete(int $id)
+    {
+        $stmt = $this->db->prepare("SELECT * FROM " . $this->entity . " WHERE id = ? limit 1");
+        $stmt->bindValue(1, $id, \PDO::PARAM_INT);
+        $stmt->execute();
+
+        $task = $stmt->fetch(\PDO::FETCH_ASSOC);
+
+        if (!empty($task['auto_delete_end'])) {
+            $stmt = $this->db->prepare("DELETE FROM " . $this->entity . " where id = ?");
+            $stmt->bindValue(1, $id, \PDO::PARAM_INT);
+            $stmt->execute();
+        }
+
+    }
+
     /**
      * Insere um item no banco
      * @param array $payload
@@ -92,84 +124,5 @@ class PdoDriver
         return $this->db->lastInsertId();
     }
 
-    public function getWorkers(): array
-    {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->entity}");
-        $stmt->execute();
-        return $stmt->fetchAll(\PDO::FETCH_OBJ);
-    }
-
-    public function pauseWorker(): bool
-    {
-        $this->insertConsumerIfNotExists(PdoDriver::STATUS_STOPPED);
-
-        $stmt = $this->db->prepare(
-            "UPDATE {$this->entity} SET status = :status, jobID = :jobID WHERE name = :name"
-        );
-        $stmt->bindValue('status', PdoDriver::STATUS_STOPPED);
-        $stmt->bindValue('jobID', null);
-        $stmt->bindValue('name', $this->consumerName);
-        $stmt->execute();
-
-        return true;
-    }
-
-    public function startWorker(): bool
-    {
-        $this->insertConsumerIfNotExists(PdoDriver::STATUS_RUNNING);
-
-        return true;
-    }
-
-    public function setWorkerItem($identificador): bool
-    {
-        $this->insertConsumerIfNotExists(PdoDriver::STATUS_RUNNING);
-
-        $stmt = $this->db->prepare(
-            "UPDATE {$this->entity} SET status = :status, jobID = :jobID, modifiedAt = :modifiedAt WHERE name = :name"
-        );
-        $stmt->bindValue('status', PdoDriver::STATUS_RUNNING);
-        $stmt->bindValue('jobID', $identificador);
-        $stmt->bindValue('name', $this->consumerName);
-        $stmt->bindValue('modifiedAt', date('Y-m-d H:i:s'));
-        $stmt->execute();
-
-        return true;
-    }
-
-    public function workerIsRunning(): bool
-    {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->entity} WHERE name = :name");
-        $stmt->bindValue('name', $this->consumerName);
-        $stmt->execute();
-        $row = $stmt->fetch(\PDO::FETCH_OBJ);
-
-        if (!empty($row->status) && $row->status === PdoDriver::STATUS_RUNNING) {
-            return true;
-        }
-
-        return false;
-    }
-
-    public function insertConsumerIfNotExists(int $status = PdoDriver::STATUS_RUNNING)
-    {
-        $stmt = $this->db->prepare("SELECT * FROM {$this->entity} WHERE name = :name");
-        $stmt->bindValue('name', $this->consumerName);
-        $stmt->execute();
-        $row = $stmt->fetch(\PDO::FETCH_OBJ);
-
-        if (empty($row)) {
-            $stmt = $this->db->prepare(
-                "INSERT INTO {$this->entity}(name, status, jobID, groupName) VALUES(:name, :status, :jobID, :groupName)"
-            );
-            $stmt->bindValue('name', $this->consumerName);
-            $stmt->bindValue('status', $status);
-            $stmt->bindValue('jobID', null);
-            $stmt->bindValue('groupName', $this->groupName);
-            $stmt->execute();
-        }
-
-        return true;
-    }
 
 }

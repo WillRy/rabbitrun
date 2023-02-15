@@ -13,7 +13,7 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue())
     );
 
 
-for ($i = 0; $i <= 50; $i++) {
+for ($i = 0; $i <= 1000; $i++) {
 
     $payload = [
         "id" => $i,
@@ -21,7 +21,5 @@ for ($i = 0; $i <= 50; $i++) {
         "conteudo" => "blablabla"
     ];
 
-    $worker
-        ->createQueue("queue_teste")
-        ->publish($payload);
+    $worker->publish("queue_teste", $payload);
 }

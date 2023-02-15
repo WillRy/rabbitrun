@@ -67,6 +67,4 @@ $worker->onError(function (\Exception $e, $dados) {
 });
 
 
-$worker
-    ->createQueue("queue_teste")
-    ->consume();
+$worker->consume("queue_teste");

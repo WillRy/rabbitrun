@@ -61,6 +61,4 @@ $worker->onError(function (\Exception $e, $dados) {
 });
 
 
-$worker
-    ->createPubSubConsumer("pub_teste")
-    ->consume(1);
+$worker->consume("pub_teste", 1);

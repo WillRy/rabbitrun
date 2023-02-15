@@ -3,9 +3,10 @@
 namespace WillRy\RabbitRun;
 
 use PhpAmqpLib\Connection\AMQPStreamConnection;
+use PhpAmqpLib\Exception\AMQPIOException;
 use PhpAmqpLib\Exception\AMQPRuntimeException;
+use PhpAmqpLib\Exception\AMQPTimeoutException;
 use WillRy\RabbitRun\Connections\Connect;
-use WillRy\RabbitRun\Connections\ConnectPDO;
 use WillRy\RabbitRun\Traits\Helpers;
 
 class Base
@@ -77,19 +78,17 @@ class Base
     {
         Connect::config($host, $port, $user, $pass, $vhost);
 
-        $this->getConnection();
-
         return $this;
     }
 
     /**
      * Gera uma conexão no rabbitmq e gera um canal(opcional)
      * @param bool $createChannel
-     * @return mixed|AMQPStreamConnection|void
+     * @return AMQPStreamConnection|void
      */
-    public function getConnection($createChannel = true)
+    public function getConnection(bool $createChannel = true, bool $forceNewConnection = false)
     {
-        $this->instance = Connect::getInstance();
+        $this->instance = Connect::getInstance($forceNewConnection);
 
         if ($createChannel) {
             $this->getChannel();
@@ -115,8 +114,12 @@ class Base
      */
     public function cleanConnection()
     {
-        Connect::closeChannel();
-        Connect::closeInstance();
+        try {
+            Connect::closeChannel();
+            Connect::closeInstance();
+        } catch (\Exception $e) {
+            echo '[ERROR CLOSE CHANNEL|INSTANCE]' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
+        }
     }
 
     /**
@@ -198,22 +201,22 @@ class Base
     {
         while (true) {
             try {
-                $this->getConnection();
+                $this->getConnection(true, true);
                 $callback();
             } catch (AMQPRuntimeException $e) {
-                echo "RuntimeException :" . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
+                echo 'AMQPRuntimeException ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
-            } catch (\RuntimeException $e) {
-                echo 'Runtime exception ' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
+            } catch (AMQPTimeoutException $e) {
+                echo 'AMQPTimeoutException ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
-            } catch (\ErrorException $e) {
-                echo 'Error exception ' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
+            } catch (AMQPIOException $e) {
+                echo 'AMQPIOException ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             } catch (\Exception $e) {
-                echo 'Exception ' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
+                echo 'Exception ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             }

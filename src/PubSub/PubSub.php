@@ -83,8 +83,10 @@ class PubSub extends \WillRy\RabbitRun\Base
      * @param array $payload
      * @return array
      */
-    public function publish(array $payload = [])
+    public function publish(string $queueName, array $payload = [])
     {
+        $this->createPubSubConsumer($queueName);
+
         $json = json_encode($payload);
 
         $message = new AMQPMessage($json);
@@ -104,12 +106,14 @@ class PubSub extends \WillRy\RabbitRun\Base
      * @throws Exception
      */
     public function consume(
-        int $sleepSeconds = 3
+        string $queueName,
+        int    $sleepSeconds = 3
     )
     {
         if ($sleepSeconds < 1) $sleepSeconds = 1;
 
-        $this->loopConnection(function () use ($sleepSeconds) {
+        $this->loopConnection(function () use ($sleepSeconds, $queueName) {
+            $this->createPubSubConsumer($queueName);
 
             /** como no pubsub ao perder a conexão, a fila exclusiva é excluida, é necessário configurar
              * fila e etc novamente

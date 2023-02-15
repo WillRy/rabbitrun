@@ -38,16 +38,12 @@ class Connect
     public static function getInstance()
     {
         if (empty(self::$instance) || (!empty(self::$instance) && !self::$instance->isConnected())) {
-            try {
-                self::$instance = new AMQPStreamConnection(
-                    self::$opt["host"],
-                    self::$opt["port"],
-                    self::$opt["user"],
-                    self::$opt["pass"]
-                );
-            } catch (\Exception $exception) {
-                die('Connection error RabbitMQ' . $exception->getMessage());
-            }
+            self::$instance = new AMQPStreamConnection(
+                self::$opt["host"],
+                self::$opt["port"],
+                self::$opt["user"],
+                self::$opt["pass"]
+            );
         }
 
         return self::$instance;
@@ -69,22 +65,14 @@ class Connect
     public static function closeInstance()
     {
         if (!empty(self::$instance) && self::$instance->isConnected()) {
-            try {
-                self::$instance->close();
-            } catch (\Exception $exception) {
-                die('[ERROR CLOSE INSTANCE]' . $exception->getMessage());
-            }
+            self::$instance->close();
         }
     }
 
     public static function closeChannel()
     {
         if (!empty(self::$channel) && self::$channel->is_open()) {
-            try {
-                self::$channel->close();
-            } catch (\Exception $exception) {
-                die('[ERROR CLOSE CHANNEL]' . $exception->getMessage());
-            }
+            self::$channel->close();
         }
     }
 

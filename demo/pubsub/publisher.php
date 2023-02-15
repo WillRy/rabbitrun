@@ -32,7 +32,5 @@ for ($i = 0; $i <= 50; $i++) {
         "conteudo" => "blablabla"
     ];
 
-    $worker
-        ->createPubSubPublisher("pub_teste")
-        ->publish($payload);
+    $worker->publish("pub_teste", $payload);
 }

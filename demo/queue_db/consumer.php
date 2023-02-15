@@ -4,7 +4,6 @@ use PhpAmqpLib\Message\AMQPMessage;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-require_once __DIR__ . "/EmailWorker.php";
 
 require_once __DIR__ . "/PdoDriver.php";
 require_once __DIR__ . "/PdoMonitor.php";
@@ -30,8 +29,9 @@ $worker->onCheckStatus(function () use ($consumerName) {
 });
 
 $worker->onReceive(function ($dados) {
-
     $id = $dados['payload']['id'];
+    echo ' [x] [  receive  ] ', $id, "\n";
+
 
     $model = new PdoDriver();
 
@@ -39,42 +39,40 @@ $worker->onReceive(function ($dados) {
 
     //se não existir no banco, ignora
     if (empty($existeNoBanco)) {
-        print_r("Não existe no banco" . PHP_EOL);
+        echo ' [x] [  não existe no banco  ] ', $id, "\n";
         return false;
     }
 
     $aindaTemRetry = $model->hasRetry($id);
     if (empty($aindaTemRetry)) {
-        print_r("Não tem retry" . PHP_EOL);
+        echo ' [x] [  esgotou o retry  ] ', $id, "\n";
         return false;
     }
 
-    $model = new PdoMonitor();
-    $model->setWorkerItem($id);
-
-    var_dump(['recebidos' => $id]);
+    return true;
 });
 $worker->onExecuting(function (AMQPMessage $message, $dados) {
-    $id = $dados['payload']['id'];
-    var_dump(['processando' => $id]);
+    $payload = $dados['payload'];
 
-    $number = rand(0, 10) % 2 === 0;
-    if ($number) throw new \Exception("Error");
+    echo ' [x] [  executing  ] ', $payload['id'], "\n";
 
     $message->ack();
+
+    $model = new PdoDriver();
+    $model->checkDelete($payload['id']);
+
+    echo ' [x] [  success  ] ', $payload['id'], "\n";
 });
 $worker->onError(function (\Exception $e, $dados) {
-    $id = $dados['payload']['id'];
+    $payload = $dados['payload'];
+    $id = $payload['id'];
+
+    echo ' [x] [  error  ] ', $payload['id'], $e->getMessage(), "\n";
 
     $model = new PdoDriver();
     $model->sumRetry($id);
-
-    $time = time();
-
-    var_dump(["erro $time" => $id]);
+    $model->setError($id, $e->getMessage());
 });
 
 
-$worker
-    ->createQueue("queue_teste")
-    ->consume();
+$worker->consume("queue_teste");

@@ -15,7 +15,7 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue())
 
 $model = new PdoDriver();
 
-for ($i = 0; $i <= 3; $i++) {
+for ($i = 0; $i <= 1; $i++) {
 
     $payload = [
         "id_email" => $i,
@@ -32,7 +32,5 @@ for ($i = 0; $i <= 3; $i++) {
 
     $payload['id'] = $id;
 
-    $worker
-        ->createQueue("queue_teste")
-        ->publish($payload);
+    $worker->publish("queue_teste", $payload);
 }
