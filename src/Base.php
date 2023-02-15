@@ -86,9 +86,9 @@ class Base
      * @param bool $createChannel
      * @return AMQPStreamConnection|void
      */
-    public function getConnection(bool $createChannel = true, bool $forceNewConnection = false)
+    public function getConnection(bool $createChannel = true)
     {
-        $this->instance = Connect::getInstance($forceNewConnection);
+        $this->instance = Connect::getInstance();
 
         if ($createChannel) {
             $this->getChannel();
@@ -201,7 +201,7 @@ class Base
     {
         while (true) {
             try {
-                $this->getConnection(true, true);
+                $this->getConnection(true);
                 $callback();
             } catch (AMQPRuntimeException $e) {
                 echo 'AMQPRuntimeException ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;

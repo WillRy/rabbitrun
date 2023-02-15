@@ -71,12 +71,12 @@ class Queue extends Base
      */
     public function publish(
         string $queueName,
-        array $job
+        array  $job
     )
     {
         try {
             $this->createQueue($queueName);
-            
+
             $this->getConnection();
 
             $payload = [
@@ -135,12 +135,14 @@ class Queue extends Base
                 false,
                 function (AMQPMessage $message) {
                     //se o status for negativo, não executa o consumo
-                    $checkStatusCallback = $this->onCheckStatusCallback;
-                    $statusBoolean = $checkStatusCallback();
+                    if (!empty($this->onCheckStatusCallback)) {
+                        $checkStatusCallback = $this->onCheckStatusCallback;
+                        $statusBoolean = $checkStatusCallback();
 
-                    if (!$statusBoolean && isset($statusBoolean)) {
-                        print_r("[WORKER STOPPED]" . PHP_EOL);
-                        return $message->nack(true);
+                        if (!$statusBoolean && isset($statusBoolean)) {
+                            print_r("[WORKER STOPPED]" . PHP_EOL);
+                            return $message->nack(true);
+                        }
                     }
 
 
@@ -149,12 +151,14 @@ class Queue extends Base
 
                     $this->currentID = $taskID;
 
-                    $receiveCallback = $this->onReceiveCallback;
-                    $statusBoolean = $receiveCallback($incomeData);
+                    if (!empty($this->onReceiveCallback)) {
+                        $receiveCallback = $this->onReceiveCallback;
+                        $statusBoolean = $receiveCallback($incomeData);
 
-                    if (!$statusBoolean && isset($statusBoolean)) {
-                        print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
-                        return $message->nack();
+                        if (!$statusBoolean && isset($statusBoolean)) {
+                            print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
+                            return $message->nack();
+                        }
                     }
 
 
@@ -165,9 +169,10 @@ class Queue extends Base
                     } catch (Exception $e) {
                         $message->nack(true);
 
-
-                        $errorCallback = $this->onErrorCallback;
-                        $errorCallback($e, $incomeData);
+                        if (!empty($this->onErrorCallback)) {
+                            $errorCallback = $this->onErrorCallback;
+                            $errorCallback($e, $incomeData);
+                        }
                     }
                 }
             );
