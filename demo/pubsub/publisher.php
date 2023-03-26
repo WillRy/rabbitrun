@@ -12,18 +12,6 @@ $worker = (new \WillRy\RabbitRun\PubSub\PubSub())
     );
 
 
-//$id = rand(0, 9999);
-//$payload = [
-//    "id" => $id,
-//    "id_email" => $id,
-//    "conteudo" => "blablabla"
-//];
-//
-//$worker
-//    ->createPubSubPublisher("pub_teste")
-//    ->publish($payload);
-//
-
 for ($i = 0; $i <= 50; $i++) {
 
     $payload = [

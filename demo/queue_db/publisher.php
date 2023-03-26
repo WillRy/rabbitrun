@@ -15,7 +15,7 @@ $worker = (new \WillRy\RabbitRun\Queue\Queue())
 
 $model = new PdoDriver();
 
-for ($i = 0; $i <= 1; $i++) {
+for ($i = 0; $i <= 800; $i++) {
 
     $payload = [
         "id_email" => $i,

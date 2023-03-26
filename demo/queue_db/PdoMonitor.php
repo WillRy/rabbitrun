@@ -1,6 +1,5 @@
 <?php
 
-use WillRy\RabbitRun\Monitor\Monitor;
 
 class PdoMonitor
 {

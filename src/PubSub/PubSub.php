@@ -5,7 +5,6 @@ namespace WillRy\RabbitRun\PubSub;
 
 use Exception;
 use PhpAmqpLib\Message\AMQPMessage;
-use WillRy\RabbitRun\Traits\Helpers;
 
 class PubSub extends \WillRy\RabbitRun\Base
 {
@@ -85,7 +84,7 @@ class PubSub extends \WillRy\RabbitRun\Base
      */
     public function publish(string $queueName, array $payload = [])
     {
-        $this->createPubSubConsumer($queueName);
+        $this->createPubSubPublisher($queueName);
 
         $json = json_encode($payload);
 
@@ -113,12 +112,11 @@ class PubSub extends \WillRy\RabbitRun\Base
         if ($sleepSeconds < 1) $sleepSeconds = 1;
 
         $this->loopConnection(function () use ($sleepSeconds, $queueName) {
-            $this->createPubSubConsumer($queueName);
 
             /** como no pubsub ao perder a conexão, a fila exclusiva é excluida, é necessário configurar
              * fila e etc novamente
              */
-            $this->createPubSubConsumer($this->exchangeBaseName);
+            $this->createPubSubConsumer($queueName);
 
             $this->channel->basic_qos(null, 1, null);
 

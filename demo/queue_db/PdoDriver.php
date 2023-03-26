@@ -1,7 +1,5 @@
 <?php
 
-use WillRy\RabbitRun\Monitor\Monitor;
-
 class PdoDriver
 {
     protected \PDO $db;
@@ -32,7 +30,7 @@ class PdoDriver
 
     public function getTask(int $id)
     {
-        $stmt = $this->db->prepare("SELECT * FROM " . $this->entity . " WHERE id = ? limit 1");
+        $stmt = $this->db->prepare("SELECT * FROM " . $this->entity . " WHERE id = ? AND status <> 'canceled' limit 1");
         $stmt->bindValue(1, $id, \PDO::PARAM_INT);
         $stmt->execute();
         return $stmt->fetch(\PDO::FETCH_ASSOC);
@@ -45,6 +43,9 @@ class PdoDriver
         $stmt->execute();
         $task = $stmt->fetch(\PDO::FETCH_ASSOC);
 
+        if(empty($task)) {
+            return false;
+        }
 
         $retries = $task["retries"];
         $maxRetries = $task['max_retries'];
@@ -56,23 +57,23 @@ class PdoDriver
     {
         $stmt = $this->db->prepare("update " . $this->entity . " set retries = retries + 1 where id = ?");
         $stmt->bindValue(1, $id, \PDO::PARAM_INT);
-        $stmt->execute();
+        return $stmt->execute();
     }
 
 
     public function setError(int $id, string $error)
     {
-        $stmt = $this->db->prepare("update " . $this->entity . " set last_error = ? where id = ?");
+        $stmt = $this->db->prepare("update " . $this->entity . " set last_error=CONCAT_WS('|', last_error, ?) where id = ?");
         $stmt->bindValue(1, $error, \PDO::PARAM_INT);
         $stmt->bindValue(2, $id, \PDO::PARAM_INT);
-        $stmt->execute();
+        return $stmt->execute();
     }
 
     public function delete(int $id)
     {
         $stmt = $this->db->prepare("DELETE FROM " . $this->entity . " where id = ?");
         $stmt->bindValue(1, $id, \PDO::PARAM_INT);
-        $stmt->execute();
+        return $stmt->execute();
     }
 
     public function checkDelete(int $id)
@@ -86,9 +87,10 @@ class PdoDriver
         if (!empty($task['auto_delete_end'])) {
             $stmt = $this->db->prepare("DELETE FROM " . $this->entity . " where id = ?");
             $stmt->bindValue(1, $id, \PDO::PARAM_INT);
-            $stmt->execute();
+            return $stmt->execute();
         }
 
+        return false;
     }
 
     /**
