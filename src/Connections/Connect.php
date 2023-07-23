@@ -86,5 +86,4 @@ class Connect
             'vhost' => $vhost,
         ];
     }
-
 }

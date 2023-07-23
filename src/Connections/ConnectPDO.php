@@ -65,5 +65,4 @@ class ConnectPDO
 
         return ConnectPDO::getInstance();
     }
-
 }

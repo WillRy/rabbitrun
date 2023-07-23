@@ -67,7 +67,7 @@ class PubSub extends \WillRy\RabbitRun\Base
         $this->exchange($this->exchangeName, 'fanout', false, false, false);
 
         $defaultQueueName = !empty($this->queueName) ? $this->queueName : '';
-        list($queueName, ,) = $this->queue($defaultQueueName, false, false, true, true);
+        list($queueName,,) = $this->queue($defaultQueueName, false, false, true, true);
 
         $this->queueName = $queueName;
 
@@ -107,8 +107,7 @@ class PubSub extends \WillRy\RabbitRun\Base
     public function consume(
         string $queueName,
         int    $sleepSeconds = 3
-    )
-    {
+    ) {
         if ($sleepSeconds < 1) $sleepSeconds = 1;
 
         $this->loopConnection(function () use ($sleepSeconds, $queueName) {
@@ -151,16 +150,12 @@ class PubSub extends \WillRy\RabbitRun\Base
                     try {
                         $executingCallback = $this->onExecutingCallback;
                         $executingCallback($message, $incomeData);
-
-
                     } catch (Exception $e) {
                         print_r("[ERROR]" . PHP_EOL);
 
                         $errorCallback = $this->onErrorCallback;
                         $errorCallback($e, $incomeData);
                     }
-
-
                 }
             );
 
@@ -169,10 +164,7 @@ class PubSub extends \WillRy\RabbitRun\Base
                 $this->channel->wait(null, false);
                 sleep($sleepSeconds);
             }
-
-
         });
-
     }
 
     public function onCheckStatus(\Closure $callback)

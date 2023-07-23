@@ -1,4 +1,5 @@
 <?php
+
 declare(ticks=1);
 
 namespace WillRy\RabbitRun\Queue;
@@ -72,8 +73,7 @@ class Queue extends Base
     public function publish(
         string $queueName,
         array  $job
-    )
-    {
+    ) {
         try {
             $this->createQueue($queueName);
 
@@ -112,8 +112,7 @@ class Queue extends Base
     public function consume(
         string $queueName,
         int    $sleepSeconds = 3
-    )
-    {
+    ) {
         if ($sleepSeconds < 1) $sleepSeconds = 1;
 
         if (empty($this->onExecutingCallback)) {
@@ -165,7 +164,6 @@ class Queue extends Base
                     try {
                         $executingCallback = $this->onExecutingCallback;
                         $executingCallback($message, $incomeData);
-
                     } catch (Exception $e) {
                         $message->nack(true);
 
@@ -182,10 +180,7 @@ class Queue extends Base
                 $this->channel->wait(null, false);
                 sleep($sleepSeconds);
             }
-
-
         });
-
     }
 
     public function onCheckStatus(\Closure $callback)

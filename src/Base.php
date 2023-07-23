@@ -7,12 +7,11 @@ use PhpAmqpLib\Exception\AMQPIOException;
 use PhpAmqpLib\Exception\AMQPRuntimeException;
 use PhpAmqpLib\Exception\AMQPTimeoutException;
 use WillRy\RabbitRun\Connections\Connect;
-use WillRy\RabbitRun\Traits\Helpers;
+
 
 class Base
 {
 
-    use Helpers;
 
     /** @var AMQPStreamConnection Instância de conexão */
     protected $instance;
@@ -138,8 +137,7 @@ class Base
         bool   $passive = false,
         bool   $durable = true,
         bool   $auto_delete = false
-    )
-    {
+    ) {
         $this->channel->exchange_declare(
             $exchange,
             $type,
@@ -166,8 +164,7 @@ class Base
         bool   $durable = true,
         bool   $exclusive = false,
         bool   $auto_delete = false
-    )
-    {
+    ) {
         return $this->channel->queue_declare(
             $queue,
             $passive,
@@ -185,10 +182,15 @@ class Base
     public function bind(
         $queue,
         $exchange
-    )
-    {
+    ) {
         $this->channel->queue_bind($queue, $exchange);
         return $this;
+    }
+
+    public function randomConsumer($len = 30): string
+    {
+        $pool = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        return substr(str_shuffle(str_repeat($pool, (int)ceil($len / strlen($pool)))), 0, $len);
     }
 
     /**
@@ -222,5 +224,4 @@ class Base
             }
         }
     }
-
 }
