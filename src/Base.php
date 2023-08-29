@@ -205,20 +205,8 @@ class Base
             try {
                 $this->getConnection(true);
                 $callback();
-            } catch (AMQPRuntimeException $e) {
-                echo 'AMQPRuntimeException ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
-                $this->cleanConnection();
-                sleep(2);
-            } catch (AMQPTimeoutException $e) {
-                echo 'AMQPTimeoutException ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
-                $this->cleanConnection();
-                sleep(2);
-            } catch (AMQPIOException $e) {
-                echo 'AMQPIOException ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
-                $this->cleanConnection();
-                sleep(2);
             } catch (\Exception $e) {
-                echo 'Exception ' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
+                echo get_class($e).':' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             }

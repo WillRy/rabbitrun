@@ -108,7 +108,6 @@ class PubSub extends \WillRy\RabbitRun\Base
         string $queueName,
         int    $sleepSeconds = 3
     ) {
-        if ($sleepSeconds < 1) $sleepSeconds = 1;
 
         $this->loopConnection(function () use ($sleepSeconds, $queueName) {
 

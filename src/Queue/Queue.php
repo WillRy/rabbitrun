@@ -113,7 +113,6 @@ class Queue extends Base
         string $queueName,
         int    $sleepSeconds = 3
     ) {
-        if ($sleepSeconds < 1) $sleepSeconds = 1;
 
         if (empty($this->onExecutingCallback)) {
             throw new \Exception("Define a onExecuting callback");
