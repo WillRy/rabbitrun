@@ -139,7 +139,8 @@ class Queue extends Base
 
                         if (!$statusBoolean && isset($statusBoolean)) {
                             print_r("[WORKER STOPPED]" . PHP_EOL);
-                            return $message->nack(true);
+                            $message->nack(true);
+                            return false;
                         }
                     }
 
@@ -155,7 +156,8 @@ class Queue extends Base
 
                         if (!$statusBoolean && isset($statusBoolean)) {
                             print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
-                            return $message->nack();
+                            $message->nack();
+                            return false;
                         }
                     }
 
