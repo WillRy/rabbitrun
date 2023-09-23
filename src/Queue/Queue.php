@@ -17,7 +17,6 @@ class Queue extends Base
     /** @var string nome da exchange */
     protected $exchangeName;
 
-    protected $currentID;
 
     /** @var string nome do consumer */
     public $consumerName;
@@ -135,50 +134,28 @@ class Queue extends Base
                     pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT]);
 
 
-                    $this->executing = true;
-
                     //se o status for negativo, não executa o consumo
-                    if (!empty($this->onCheckStatusCallback)) {
-                        $checkStatusCallback = $this->onCheckStatusCallback;
-                        $statusBoolean = $checkStatusCallback();
+                    $statusBoolean = $this->executeStatusCallback($message);
 
-                        if (!$statusBoolean && isset($statusBoolean)) {
-                            print_r("[WORKER STOPPED]" . PHP_EOL);
-                            $message->nack(true);
-                            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
-                            return false;
-                        }
+                    if (!$statusBoolean) {
+                        return false;
                     }
-
 
                     $incomeData = json_decode($message->getBody(), true);
-                    $taskID = !empty($incomeData['id']) ? $incomeData['id'] : null;
 
-                    $this->currentID = $taskID;
+                    
+                    $statusBoolean = $this->executeReceiveCallback($message, $incomeData);
 
-                    if (!empty($this->onReceiveCallback)) {
-                        $receiveCallback = $this->onReceiveCallback;
-                        $statusBoolean = $receiveCallback($incomeData);
-
-                        if (!$statusBoolean && isset($statusBoolean)) {
-                            print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
-                            $message->nack();
-                            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
-                            return false;
-                        }
+                    if (!$statusBoolean) {
+                        return false;
                     }
-
 
                     try {
                         $executingCallback = $this->onExecutingCallback;
                         $executingCallback($message, $incomeData);
                     } catch (Exception $e) {
                         $message->nack(true);
-
-                        if (!empty($this->onErrorCallback)) {
-                            $errorCallback = $this->onErrorCallback;
-                            $errorCallback($e, $incomeData);
-                        }
+                        $this->executeErrorCallback($e, $incomeData);
                     }
 
                     pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
@@ -214,5 +191,54 @@ class Queue extends Base
     public function onError(\Closure $callback)
     {
         $this->onErrorCallback = $callback;
+    }
+
+    public function executeStatusCallback(AMQPMessage $message)
+    {
+        if (empty($this->onCheckStatusCallback)) {
+            return true;
+        }
+
+        $checkStatusCallback = $this->onCheckStatusCallback;
+        $statusBoolean = $checkStatusCallback();
+
+        if (!$statusBoolean && isset($statusBoolean)) {
+            print_r("[WORKER STOPPED]" . PHP_EOL);
+            $message->nack(true);
+            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
+            return false;
+        }
+
+        return true;
+    }
+
+    public function executeReceiveCallback(AMQPMessage $message, $incomeData)
+    {
+        if (empty($this->onReceiveCallback)) {
+            return true;
+        }
+
+        $receiveCallback = $this->onReceiveCallback;
+        $statusBoolean = $receiveCallback($incomeData);
+        if (!$statusBoolean && isset($statusBoolean)) {
+            print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
+            $message->nack();
+            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
+            return false;
+        }
+
+
+        return true;
+    }
+
+    public function executeErrorCallback(\Exception $e, $incomeData)
+    {
+        if (empty($this->onErrorCallback)) {
+            return false;
+        }
+
+        $errorCallback = $this->onErrorCallback;
+        $errorCallback($e, $incomeData);
+        return true;
     }
 }

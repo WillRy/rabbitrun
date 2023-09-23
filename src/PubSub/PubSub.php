@@ -126,22 +126,17 @@ class PubSub extends \WillRy\RabbitRun\Base
                 false,
                 false,
                 function (AMQPMessage $message) {
-                    //se o status for negativo, não executa o consumo
-                    $checkStatusCallback = $this->onCheckStatusCallback;
-                    $statusBoolean = $checkStatusCallback();
+                    $statusBoolean = $this->executeStatusCallback($message);
 
-                    if (!$statusBoolean && isset($statusBoolean)) {
-                        print_r("[WORKER STOPPED]" . PHP_EOL);
+                    if (!$statusBoolean) {
                         return false;
                     }
 
                     $incomeData = json_decode($message->getBody(), true);
 
-                    $receiveCallback = $this->onReceiveCallback;
-                    $statusBoolean = $receiveCallback($incomeData);
+                    $statusBoolean = $this->executeReceiveCallback($message, $incomeData);
 
-                    if (!$statusBoolean && isset($statusBoolean)) {
-                        print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
+                    if (!$statusBoolean) {
                         return false;
                     }
 
@@ -151,9 +146,7 @@ class PubSub extends \WillRy\RabbitRun\Base
                         $executingCallback($message, $incomeData);
                     } catch (Exception $e) {
                         print_r("[ERROR]" . PHP_EOL);
-
-                        $errorCallback = $this->onErrorCallback;
-                        $errorCallback($e, $incomeData);
+                        $this->executeErrorCallback($e, $incomeData);
                     }
                 }
             );
@@ -184,5 +177,50 @@ class PubSub extends \WillRy\RabbitRun\Base
     public function onError(\Closure $callback)
     {
         $this->onErrorCallback = $callback;
+    }
+
+    public function executeStatusCallback()
+    {
+        if (empty($this->onCheckStatusCallback)) {
+            return true;
+        }
+
+        $checkStatusCallback = $this->onCheckStatusCallback;
+        $statusBoolean = $checkStatusCallback();
+
+        if (!$statusBoolean && isset($statusBoolean)) {
+            print_r("[WORKER STOPPED]" . PHP_EOL);
+            return false;
+        }
+
+        return true;
+    }
+
+    public function executeReceiveCallback($incomeData)
+    {
+        if (empty($this->onReceiveCallback)) {
+            return true;
+        }
+
+        $receiveCallback = $this->onReceiveCallback;
+        $statusBoolean = $receiveCallback($incomeData);
+        if (!$statusBoolean && isset($statusBoolean)) {
+            print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
+            return false;
+        }
+
+
+        return true;
+    }
+
+    public function executeErrorCallback(\Exception $e, $incomeData)
+    {
+        if (empty($this->onErrorCallback)) {
+            return false;
+        }
+
+        $errorCallback = $this->onErrorCallback;
+        $errorCallback($e, $incomeData);
+        return true;
     }
 }
