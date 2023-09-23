@@ -1,5 +1,9 @@
 # RabbitRun - Mecanismo de fila
 
+Qualidade de código:
+
+[![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/WillRy/rabbitrun/badges/quality-score.png?b=main)](https://scrutinizer-ci.com/g/WillRy/rabbitrun/?branch=main)
+
 Mecanismo de fila utilizando a combinação do RabbitMQ e MySQL
 
 - O RabbitMQ para entrega e distribuição da tarefa entre os workers

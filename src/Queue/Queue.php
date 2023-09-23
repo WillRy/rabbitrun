@@ -112,7 +112,7 @@ class Queue extends Base
         string $queueName,
         int    $sleepSeconds = 3
     ) {
-
+        $this->validateExecuteCallback();
         
 
         $this->loopConnection(function () use ($sleepSeconds, $queueName) {
@@ -228,10 +228,6 @@ class Queue extends Base
 
     public function executeMessage(AMQPMessage $message, $incomeData)
     {
-        if (empty($this->onExecutingCallback)) {
-            throw new \Exception("Define a onExecuting callback");
-        }
-
         $onExecutingCallback = $this->onExecutingCallback;
         $onExecutingCallback($message, $incomeData);
     }
@@ -246,5 +242,14 @@ class Queue extends Base
         $errorCallback = $this->onErrorCallback;
         $errorCallback($e, $incomeData);
         return true;
+    }
+
+    public function validateExecuteCallback()
+    {
+        if (!empty($this->onExecutingCallback)) {
+            return true;
+        }
+
+        throw new \Exception("Define a onExecuting callback");
     }
 }
