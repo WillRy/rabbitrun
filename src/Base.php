@@ -22,6 +22,9 @@ class Base
     /** @var \PDO Conexão do PDO */
     protected $db;
 
+    /** @var bool */
+    protected $executing = false;
+
 
     public function __construct()
     {

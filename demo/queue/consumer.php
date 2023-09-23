@@ -52,10 +52,14 @@ $worker->onExecuting(function (AMQPMessage $message, $dados) {
 
     echo ' [x] [ executing ] ', json_encode($dados), "\n";
 
+    sleep(1);
+
 //    $number = rand(0, 10) % 2 === 0;
 //    if ($number) throw new \Exception("Error");
 
     $message->ack();
+
+    echo ' [x] [ success ] ', json_encode($dados), "\n";
 });
 
 /**

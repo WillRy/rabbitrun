@@ -8,8 +8,23 @@ Mecanismo de fila utilizando a combinação do RabbitMQ e MySQL
 Combinando o MySQL junto ao RabbitMQ, é possível pesquisar e excluir/ignorar itens da fila de forma simples, o que não é
 possível somente com o RabbitMQ, devido as limitações dele em procurar itens dentro da fila
 
-**Workers**: É possível ter vários workers consumindo a fila ao mesmo tempo, pois o rabbit mq trata a distribuição de
+**Workers**: É possível ter vários workers consumindo a fila ao mesmo tempo, pois o RabbitMQ trata a distribuição de
 tarefa entre eles.
+
+## Graceful stop - parar somente após terminar task
+
+Para garantir que os consumers/workers não reiniciem durante a execução de uma task, foram
+implementados mecanismos que detectam os "signals" para encerrar o script e assim só finalizam
+o script após terminar a task atual.
+
+Isso é feito através dos signals: 
+- SIGINT 
+- SIGTERM
+
+Usando os recursos:
+- pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT]);
+- pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
+- pcntl_signal_dispatch();
 
 ## Requisitos
 
@@ -207,3 +222,5 @@ create table rabbit_monitor
 );
 
 ```
+
+

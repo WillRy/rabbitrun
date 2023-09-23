@@ -132,6 +132,11 @@ class Queue extends Base
                 false,
                 false,
                 function (AMQPMessage $message) {
+                    pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT]);
+
+
+                    $this->executing = true;
+
                     //se o status for negativo, não executa o consumo
                     if (!empty($this->onCheckStatusCallback)) {
                         $checkStatusCallback = $this->onCheckStatusCallback;
@@ -140,6 +145,7 @@ class Queue extends Base
                         if (!$statusBoolean && isset($statusBoolean)) {
                             print_r("[WORKER STOPPED]" . PHP_EOL);
                             $message->nack(true);
+                            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
                             return false;
                         }
                     }
@@ -157,6 +163,7 @@ class Queue extends Base
                         if (!$statusBoolean && isset($statusBoolean)) {
                             print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
                             $message->nack();
+                            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
                             return false;
                         }
                     }
@@ -173,6 +180,8 @@ class Queue extends Base
                             $errorCallback($e, $incomeData);
                         }
                     }
+
+                    pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
                 }
             );
 
@@ -180,6 +189,9 @@ class Queue extends Base
             while ($this->channel->is_open()) {
                 $this->channel->wait(null, false);
                 sleep($sleepSeconds);
+
+                // Despachar eventos de "finalizar" script
+                pcntl_signal_dispatch();
             }
         });
     }
