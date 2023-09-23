@@ -113,9 +113,7 @@ class Queue extends Base
         int    $sleepSeconds = 3
     ) {
 
-        if (empty($this->onExecutingCallback)) {
-            throw new \Exception("Define a onExecuting callback");
-        }
+        
 
         $this->loopConnection(function () use ($sleepSeconds, $queueName) {
 
@@ -133,6 +131,7 @@ class Queue extends Base
                 function (AMQPMessage $message) {
                     pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT]);
 
+                    $incomeData = json_decode($message->getBody(), true);
 
                     //se o status for negativo, não executa o consumo
                     $statusBoolean = $this->executeStatusCallback($message);
@@ -141,18 +140,14 @@ class Queue extends Base
                         return false;
                     }
 
-                    $incomeData = json_decode($message->getBody(), true);
+                    $receiveBoolean = $this->executeReceiveCallback($message, $incomeData);
 
-                    
-                    $statusBoolean = $this->executeReceiveCallback($message, $incomeData);
-
-                    if (!$statusBoolean) {
+                    if (!$receiveBoolean) {
                         return false;
                     }
 
                     try {
-                        $executingCallback = $this->onExecutingCallback;
-                        $executingCallback($message, $incomeData);
+                        $this->executeMessage($message, $incomeData);
                     } catch (Exception $e) {
                         $message->nack(true);
                         $this->executeErrorCallback($e, $incomeData);
@@ -230,6 +225,17 @@ class Queue extends Base
 
         return true;
     }
+
+    public function executeMessage(AMQPMessage $message, $incomeData)
+    {
+        if (empty($this->onExecutingCallback)) {
+            throw new \Exception("Define a onExecuting callback");
+        }
+
+        $onExecutingCallback = $this->onExecutingCallback;
+        $onExecutingCallback($message, $incomeData);
+    }
+    
 
     public function executeErrorCallback(\Exception $e, $incomeData)
     {
