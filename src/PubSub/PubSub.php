@@ -5,76 +5,31 @@ namespace WillRy\RabbitRun\PubSub;
 
 use Exception;
 use PhpAmqpLib\Message\AMQPMessage;
+use WillRy\RabbitRun\Base;
 
-class PubSub extends \WillRy\RabbitRun\Base
+class PubSub extends Base
 {
-    /** @var string nome da fila */
-    protected string $queueName;
-
-    /** @var string nome da exchange */
-    protected string $exchangeBaseName;
-
-    protected string $exchangeName;
-
     public \Closure $onReceiveCallback;
-
+    
     public \Closure $onExecutingCallback;
 
     public \Closure $onErrorCallback;
 
     public \Closure $onCheckStatusCallback;
 
-    public function __construct()
+    /** @var string nome da fila */
+    protected string $queueName;
+    /** @var string nome da exchange */
+    protected string $exchangeBaseName;
+    protected string $exchangeName;
+
+    public function __construct($host, $port, $user, $pass, $vhost)
     {
         parent::__construct();
 
+        $this->configRabbit($host, $port, $user, $pass, $vhost);
+
         $this->queueName = $this->randomConsumer(12);
-    }
-
-    /**
-     * Configura o pubsub criando
-     * a exchenge e fila
-     * @param string $name
-     * @return $this
-     */
-    public function createPubSubPublisher(string $name): PubSub
-    {
-        $this->getConnection();
-
-        $this->exchangeName = "{$name}_exchange";
-
-        $this->exchangeBaseName = "{$name}";
-
-        $this->exchange($this->exchangeName, 'fanout', false, false, false);
-
-        return $this;
-    }
-
-    /**
-     * Configura o pubsub criando
-     * a exchenge e fila
-     * @param string $name
-     * @return $this
-     */
-    public function createPubSubConsumer(string $name): PubSub
-    {
-        $this->getConnection();
-
-        $this->exchangeName = "{$name}_exchange";
-
-        $this->exchangeBaseName = "{$name}";
-
-        $this->exchange($this->exchangeName, 'fanout', false, false, false);
-
-        $defaultQueueName = !empty($this->queueName) ? $this->queueName : '';
-        list($queueName,,) = $this->queue($defaultQueueName, false, false, true, true);
-
-        $this->queueName = $queueName;
-
-
-        $this->bind($this->queueName, $this->exchangeName);
-
-        return $this;
     }
 
     /**
@@ -99,6 +54,23 @@ class PubSub extends \WillRy\RabbitRun\Base
     }
 
     /**
+     * Configura o pubsub criando
+     * a exchenge e fila
+     * @param string $name
+     * @return $this
+     */
+    public function createPubSubPublisher(string $name): PubSub
+    {
+        $this->exchangeName = "{$name}_exchange";
+
+        $this->exchangeBaseName = "{$name}";
+
+        $this->exchange($this->exchangeName, 'fanout', false, false, false);
+
+        return $this;
+    }
+
+    /**
      * Loop de consumo de mensagem
      *
      * @param int $sleepSeconds
@@ -107,11 +79,12 @@ class PubSub extends \WillRy\RabbitRun\Base
     public function consume(
         string $queueName,
         int    $sleepSeconds = 3
-    ) {
+    )
+    {
 
         $this->loopConnection(function () use ($sleepSeconds, $queueName) {
 
-            /** como no pubsub ao perder a conexão, a fila exclusiva é excluida, é necessário configurar
+            /** como no pubsub ao perder a conexÃ£o, a fila exclusiva Ã© excluida, Ã© necessÃ¡rio configurar
              * fila e etc novamente
              */
             $this->createPubSubConsumer($queueName);
@@ -159,24 +132,31 @@ class PubSub extends \WillRy\RabbitRun\Base
         });
     }
 
-    public function onCheckStatus(\Closure $callback)
+    /**
+     * Configura o pubsub criando
+     * a exchenge e fila
+     * @param string $name
+     * @return $this
+     */
+    public function createPubSubConsumer(string $name): PubSub
     {
-        $this->onCheckStatusCallback = $callback;
-    }
+        $this->getConnection();
 
-    public function onReceive(\Closure $callback)
-    {
-        $this->onReceiveCallback = $callback;
-    }
+        $this->exchangeName = "{$name}_exchange";
 
-    public function onExecuting(\Closure $callback)
-    {
-        $this->onExecutingCallback = $callback;
-    }
+        $this->exchangeBaseName = "{$name}";
 
-    public function onError(\Closure $callback)
-    {
-        $this->onErrorCallback = $callback;
+        $this->exchange($this->exchangeName, 'fanout', false, false, false);
+
+        $defaultQueueName = !empty($this->queueName) ? $this->queueName : '';
+        list($queueName, ,) = $this->queue($defaultQueueName, false, false, true, true);
+
+        $this->queueName = $queueName;
+
+
+        $this->bind($this->queueName, $this->exchangeName);
+
+        return $this;
     }
 
     public function executeStatusCallback()
@@ -213,7 +193,7 @@ class PubSub extends \WillRy\RabbitRun\Base
         return true;
     }
 
-    public function executeErrorCallback(\Exception $e, $incomeData)
+    public function executeErrorCallback(Exception $e, $incomeData)
     {
         if (empty($this->onErrorCallback)) {
             return false;
@@ -222,5 +202,25 @@ class PubSub extends \WillRy\RabbitRun\Base
         $errorCallback = $this->onErrorCallback;
         $errorCallback($e, $incomeData);
         return true;
+    }
+
+    public function onCheckStatus(\Closure $callback)
+    {
+        $this->onCheckStatusCallback = $callback;
+    }
+
+    public function onReceive(\Closure $callback)
+    {
+        $this->onReceiveCallback = $callback;
+    }
+
+    public function onExecuting(\Closure $callback)
+    {
+        $this->onExecutingCallback = $callback;
+    }
+
+    public function onError(\Closure $callback)
+    {
+        $this->onErrorCallback = $callback;
     }
 }

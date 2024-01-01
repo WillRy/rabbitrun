@@ -9,14 +9,13 @@ require_once __DIR__ . "/PdoDriver.php";
 require_once __DIR__ . "/PdoMonitor.php";
 
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue())
-    ->configRabbit(
-        "rabbitmq",
-        "5672",
-        "admin",
-        "admin",
-        "/"
-    );
+$worker = new \WillRy\RabbitRun\Queue\Queue(
+    "rabbitmq",
+    "5672",
+    "admin",
+    "admin",
+    "/"
+);
 
 $consumerName = $argv[1] ?? rand(1, 99999);
 

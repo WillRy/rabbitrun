@@ -8,7 +8,6 @@ use PhpAmqpLib\Exception\AMQPRuntimeException;
 use PhpAmqpLib\Exception\AMQPTimeoutException;
 use WillRy\RabbitRun\Connections\Connect;
 
-
 class Base
 {
 
@@ -19,7 +18,7 @@ class Base
     /** @var \PhpAmqpLib\Channel\AMQPChannel Canal de comunicação */
     protected $channel;
 
-    /** @var \PDO Conexão do PDO */
+    /** @var PDO ConexÃ£o do PDO */
     protected $db;
 
     /** @var bool */
@@ -59,16 +58,16 @@ class Base
                 print "Caught SIGTERM {$data}" . PHP_EOL;
                 exit;
             case SIGKILL:
-                print "Caught SIGKILL {$data}" . PHP_EOL;;
+                print "Caught SIGKILL {$data}" . PHP_EOL;
                 exit;
             case SIGINT:
-                print "Caught SIGINT {$data}" . PHP_EOL;;
+                print "Caught SIGINT {$data}" . PHP_EOL;
                 exit;
         }
     }
 
     /**
-     * Configura o rabbitmq e gera conexão ativa
+     * Configura o rabbitmq e gera conexÃ£o ativa
      * @param $host
      * @param $port
      * @param $user
@@ -80,48 +79,9 @@ class Base
     {
         Connect::config($host, $port, $user, $pass, $vhost);
 
+        $this->getConnection();
+
         return $this;
-    }
-
-    /**
-     * Gera uma conexão no rabbitmq e gera um canal(opcional)
-     * @param bool $createChannel
-     * @return AMQPStreamConnection|void
-     */
-    public function getConnection(bool $createChannel = true)
-    {
-        $this->instance = Connect::getInstance();
-
-        if ($createChannel) {
-            $this->getChannel();
-        }
-
-        return $this->instance;
-    }
-
-    /**
-     * Retorna canal ativo ou cria um novo
-     * @return \PhpAmqpLib\Channel\AMQPChannel|void
-     */
-    public function getChannel()
-    {
-        $this->channel = Connect::getChannel();
-        return $this->channel;
-    }
-
-
-    /**
-     * Fecha a conexão com o RabbitMQ
-     * @throws \Exception
-     */
-    public function cleanConnection()
-    {
-        try {
-            Connect::closeChannel();
-            Connect::closeInstance();
-        } catch (\Exception $e) {
-            echo '[ERROR CLOSE CHANNEL|INSTANCE]' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
-        }
     }
 
     /**
@@ -140,7 +100,8 @@ class Base
         bool   $passive = false,
         bool   $durable = true,
         bool   $auto_delete = false
-    ) {
+    )
+    {
         $this->channel->exchange_declare(
             $exchange,
             $type,
@@ -167,7 +128,8 @@ class Base
         bool   $durable = true,
         bool   $exclusive = false,
         bool   $auto_delete = false
-    ) {
+    )
+    {
         return $this->channel->queue_declare(
             $queue,
             $passive,
@@ -185,7 +147,8 @@ class Base
     public function bind(
         $queue,
         $exchange
-    ) {
+    )
+    {
         $this->channel->queue_bind($queue, $exchange);
         return $this;
     }
@@ -197,10 +160,10 @@ class Base
     }
 
     /**
-     * Mantém a conexão, mesmo em caso de erro
-     * de rede ou conexão
+     * MantÃ©m a conexÃ£o, mesmo em caso de erro
+     * de rede ou conexÃ£o
      * @param $callback
-     * @throws \Exception
+     * @throws Exception
      */
     public function loopConnection($callback)
     {
@@ -209,10 +172,50 @@ class Base
                 $this->getConnection(true);
                 $callback();
             } catch (\Exception $e) {
-                echo get_class($e).':' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
+                echo get_class($e) . ':' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
                 $this->cleanConnection();
                 sleep(2);
             }
+        }
+    }
+
+    /**
+     * Gera uma conexÃ£o no rabbitmq e gera um canal(opcional)
+     * @param bool $createChannel
+     * @return AMQPStreamConnection|void
+     */
+    public function getConnection(bool $createChannel = true)
+    {
+        $this->instance = Connect::getInstance();
+
+        if ($createChannel) {
+            $this->getChannel();
+        }
+
+        return $this->instance;
+    }
+
+    /**
+     * Retorna canal ativo ou cria um novo
+     * @return AMQPChannel|void
+     */
+    public function getChannel()
+    {
+        $this->channel = Connect::getChannel();
+        return $this->channel;
+    }
+
+    /**
+     * Fecha a conexÃ£o com o RabbitMQ
+     * @throws Exception
+     */
+    public function cleanConnection()
+    {
+        try {
+            Connect::closeChannel();
+            Connect::closeInstance();
+        } catch (\Exception $e) {
+            echo '[ERROR CLOSE CHANNEL|INSTANCE]' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
         }
     }
 }

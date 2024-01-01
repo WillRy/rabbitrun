@@ -11,15 +11,14 @@ use WillRy\RabbitRun\Base;
 
 class Queue extends Base
 {
-    /** @var string nome da fila */
-    protected $queueName;
-
-    /** @var string nome da exchange */
-    protected $exchangeName;
-
-
     /** @var string nome do consumer */
     public $consumerName;
+    
+    /** @var string nome da fila */
+    protected $queueName;
+    
+    /** @var string nome da exchange */
+    protected $exchangeName;
 
     protected \Closure $onReceiveCallback;
 
@@ -29,38 +28,17 @@ class Queue extends Base
 
     protected \Closure $onCheckStatusCallback;
 
-    public function __construct()
+    public function __construct($host, $port, $user, $pass, $vhost)
     {
         parent::__construct();
+
+        $this->configRabbit($host, $port, $user, $pass, $vhost);
     }
 
     public function shutdown($signal)
     {
         parent::shutdown($signal);
     }
-
-    /**
-     * Inicializa a fila e exchange, vinculano os 2
-     * @param string $name
-     * @return $this
-     */
-    public function createQueue(string $name)
-    {
-        $this->getConnection();
-
-        $this->queueName = "{$name}";
-
-        $this->exchangeName = "{$name}_exchange";
-
-        $this->exchange($this->exchangeName);
-
-        $this->queue($name);
-
-        $this->bind($name, $this->exchangeName);
-
-        return $this;
-    }
-
 
     /**
      * Publica mensagem
@@ -76,7 +54,6 @@ class Queue extends Base
         try {
             $this->createQueue($queueName);
 
-            $this->getConnection();
 
             $payload = [
                 "payload" => $job,
@@ -101,6 +78,26 @@ class Queue extends Base
         }
     }
 
+    /**
+     * Inicializa a fila e exchange, vinculano os 2
+     * @param string $name
+     * @return $this
+     */
+    public function createQueue(string $name)
+    {
+
+        $this->queueName = "{$name}";
+
+        $this->exchangeName = "{$name}_exchange";
+
+        $this->exchange($this->exchangeName);
+
+        $this->queue($name);
+
+        $this->bind($name, $this->exchangeName);
+
+        return $this;
+    }
 
     /**
      * Loop de consumo de mensagem
@@ -113,7 +110,7 @@ class Queue extends Base
         int    $sleepSeconds = 3
     ) {
         $this->validateExecuteCallback();
-        
+
 
         $this->loopConnection(function () use ($sleepSeconds, $queueName) {
 
@@ -133,7 +130,7 @@ class Queue extends Base
 
                     $incomeData = json_decode($message->getBody(), true);
 
-                    //se o status for negativo, não executa o consumo
+                    //se o status for negativo, nÃ£o executa o consumo
                     $statusBoolean = $this->executeStatusCallback($message);
 
                     if (!$statusBoolean) {
@@ -168,24 +165,13 @@ class Queue extends Base
         });
     }
 
-    public function onCheckStatus(\Closure $callback)
+    public function validateExecuteCallback()
     {
-        $this->onCheckStatusCallback = $callback;
-    }
+        if (!empty($this->onExecutingCallback)) {
+            return true;
+        }
 
-    public function onReceive(\Closure $callback)
-    {
-        $this->onReceiveCallback = $callback;
-    }
-
-    public function onExecuting(\Closure $callback)
-    {
-        $this->onExecutingCallback = $callback;
-    }
-
-    public function onError(\Closure $callback)
-    {
-        $this->onErrorCallback = $callback;
+        throw new Exception("Define a onExecuting callback");
     }
 
     public function executeStatusCallback(AMQPMessage $message)
@@ -231,9 +217,8 @@ class Queue extends Base
         $onExecutingCallback = $this->onExecutingCallback;
         $onExecutingCallback($message, $incomeData);
     }
-    
 
-    public function executeErrorCallback(\Exception $e, $incomeData)
+    public function executeErrorCallback(Exception $e, $incomeData)
     {
         if (empty($this->onErrorCallback)) {
             return false;
@@ -244,12 +229,23 @@ class Queue extends Base
         return true;
     }
 
-    public function validateExecuteCallback()
+    public function onCheckStatus(\Closure $callback)
     {
-        if (!empty($this->onExecutingCallback)) {
-            return true;
-        }
+        $this->onCheckStatusCallback = $callback;
+    }
 
-        throw new \Exception("Define a onExecuting callback");
+    public function onReceive(\Closure $callback)
+    {
+        $this->onReceiveCallback = $callback;
+    }
+
+    public function onExecuting(\Closure $callback)
+    {
+        $this->onExecutingCallback = $callback;
+    }
+
+    public function onError(\Closure $callback)
+    {
+        $this->onErrorCallback = $callback;
     }
 }

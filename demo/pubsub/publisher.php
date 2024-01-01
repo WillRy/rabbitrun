@@ -2,14 +2,13 @@
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\PubSub\PubSub())
-    ->configRabbit(
-        "rabbitmq", //rabbitmq host
-        "5672", //rabbitmq port
-        "admin", //rabbitmq user
-        "admin", //rabbitmq password
-        "/" //rabbitmq vhost
-    );
+$worker = new \WillRy\RabbitRun\PubSub\PubSub(
+    "rabbitmq",
+    "5672",
+    "admin",
+    "admin",
+    "/"
+);
 
 
 for ($i = 0; $i <= 50; $i++) {

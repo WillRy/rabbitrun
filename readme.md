@@ -51,17 +51,16 @@ Usando os recursos:
 require_once __DIR__ . '/../../vendor/autoload.php';
 
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue())
-    ->configRabbit(
-        "rabbitmq", //rabbitmq host
-        "5672", //rabbitmq port
-        "admin", //rabbitmq user
-        "admin", //rabbitmq password
-        "/" //rabbitmq vhost
-    );
+$worker = new \WillRy\RabbitRun\Queue\Queue(
+    "rabbitmq",
+    "5672",
+    "admin",
+    "admin",
+    "/"
+);
 
 
-for ($i = 0; $i <= 3; $i++) {
+for ($i = 0; $i <= 1000; $i++) {
 
     $payload = [
         "id" => $i,
@@ -69,10 +68,9 @@ for ($i = 0; $i <= 3; $i++) {
         "conteudo" => "blablabla"
     ];
 
-    $worker
-        ->createQueue("queue_teste")
-        ->publish($payload);
+    $worker->publish("queue_teste", $payload);
 }
+
 
 ```
 
@@ -87,14 +85,13 @@ use PhpAmqpLib\Message\AMQPMessage;
 
 require_once __DIR__ . '/../../vendor/autoload.php';
 
-$worker = (new \WillRy\RabbitRun\Queue\Queue())
-    ->configRabbit(
-        "rabbitmq",
-        "5672",
-        "admin",
-        "admin",
-        "/"
-    );
+$worker = new \WillRy\RabbitRun\Queue\Queue(
+    "rabbitmq",
+    "5672",
+    "admin",
+    "admin",
+    "/"
+);
 
 
 /**
@@ -135,10 +132,14 @@ $worker->onExecuting(function (AMQPMessage $message, $dados) {
 
     echo ' [x] [ executing ] ', json_encode($dados), "\n";
 
+    sleep(1);
+
 //    $number = rand(0, 10) % 2 === 0;
 //    if ($number) throw new \Exception("Error");
 
     $message->ack();
+
+    echo ' [x] [ success ] ', json_encode($dados), "\n";
 });
 
 /**
@@ -150,9 +151,8 @@ $worker->onError(function (\Exception $e, $dados) {
 });
 
 
-$worker
-    ->createQueue("queue_teste")
-    ->consume();
+$worker->consume("queue_teste");
+
 
 ```
 
