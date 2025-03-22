@@ -14,19 +14,6 @@ $worker = new \WillRy\RabbitRun\Queue\Queue(
 
 
 /**
- * Executa quando o worker pega uma tarefa
- *
- * Retorna verdadeiro para o worker executar
- * Retorna false para o worker ficar devolvendo os itens para a fila
- *
- * Utilidade: Dizer se o worker está ativo, com base em algum registro de banco de dados, monitor de serviços
- * e etc
- */
-$worker->onCheckStatus(function () {
-
-});
-
-/**
  * Executa ao pegar um item na fila
  * Se retornar false, o item é descartado
  *

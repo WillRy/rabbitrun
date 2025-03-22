@@ -170,6 +170,7 @@ class Base
         while (true) {
             try {
                 $this->getConnection(true);
+                echo ' [x] [  connected  ] ', "\n";
                 $callback();
             } catch (\Exception $e) {
                 echo get_class($e) . ':' . $e->getMessage() . " | file:" . $e->getFile() . " | line:" . $e->getLine() . PHP_EOL;
