@@ -72,6 +72,10 @@ class Queue extends Base
                 $this->exchangeName
             );
 
+            if ($this->confirmSelect) {
+                $this->channel->wait_for_pending_acks(5000);
+            }
+
             return $payload;
         } catch (Exception $e) {
             throw $e;

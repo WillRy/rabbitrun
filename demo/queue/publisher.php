@@ -12,7 +12,7 @@ $worker = new \WillRy\RabbitRun\Queue\Queue(
 );
 
 
-for ($i = 0; $i <= 1000; $i++) {
+for ($i = 0; $i <= 0; $i++) {
 
     $payload = [
         "id" => $i,

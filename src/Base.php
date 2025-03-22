@@ -24,6 +24,8 @@ class Base
     /** @var bool */
     protected $executing = false;
 
+    protected $confirmSelect = false;
+
 
     public function __construct()
     {
@@ -203,6 +205,11 @@ class Base
     public function getChannel()
     {
         $this->channel = Connect::getChannel();
+
+        if ($this->confirmSelect) {
+            $this->channel->confirm_select();
+        }
+
         return $this->channel;
     }
 
@@ -218,5 +225,11 @@ class Base
         } catch (\Exception $e) {
             echo '[ERROR CLOSE CHANNEL|INSTANCE]' . $e->getMessage() . "|file:" . $e->getFile() . "|line:" . $e->getLine() . PHP_EOL;
         }
+    }
+
+    public function configConfirmSelect(bool $confirmSelect = true)
+    {
+        $this->confirmSelect = $confirmSelect;
+        return $this;
     }
 }
