@@ -6,84 +6,82 @@ use PhpAmqpLib\Channel\AMQPChannel;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 
 /**
- * Class Connect Singleton Pattern
+ * Class Connect
+ * Mantém a conexão e o canal de uma instância (cada instância tem sua própria conexão)
  */
 class Connect
 {
-    /**
-     * @const array
-     */
-    private static $opt = [];
+    /** @var array */
+    private $opt;
 
-    /** @var AMQPStreamConnection */
-    private static $instance;
+    /** @var AMQPStreamConnection|null */
+    private $instance;
 
-    /** @var AMQPChannel */
-    private static $channel;
+    /** @var AMQPChannel|null */
+    private $channel;
 
     /**
-     * Connect constructor. Private singleton
+     * @param int $heartbeat intervalo em segundos (0 desativa); deve ser maior que a tarefa mais longa
      */
-    private function __construct()
+    public function __construct($host, $port, $user, #[\SensitiveParameter] $pass, $vhost, int $heartbeat = 60)
     {
-    }
-
-    /**
-     * Connect clone. Private singleton
-     */
-    private function __clone()
-    {
-    }
-
-    public static function getInstance()
-    {
-        if (empty(self::$instance) || (!empty(self::$instance) && !self::$instance->isConnected())) {
-            self::$instance = new AMQPStreamConnection(
-                self::$opt["host"],
-                self::$opt["port"],
-                self::$opt["user"],
-                self::$opt["pass"]
-            );
-        }
-
-        return self::$instance;
-    }
-
-    public static function getChannel()
-    {
-        if (empty(self::$channel) || (!empty(self::$channel) && !self::$channel->is_open())) {
-            try {
-                self::$channel = self::getInstance()->channel();
-            } catch (\Exception $exception) {
-                die('Connection error RabbitMQ' . $exception->getMessage());
-            }
-        }
-
-        return self::$channel;
-    }
-
-    public static function closeInstance()
-    {
-        if (!empty(self::$instance) && self::$instance->isConnected()) {
-            self::$instance->close();
-        }
-    }
-
-    public static function closeChannel()
-    {
-        if (!empty(self::$channel) && self::$channel->is_open()) {
-            self::$channel->close();
-        }
-    }
-
-    public static function config($host, $port, $user, $pass, $vhost)
-    {
-        self::$opt = [
+        $this->opt = [
             'host' => $host,
             'port' => $port,
             'user' => $user,
             'pass' => $pass,
             'vhost' => $vhost,
+            'heartbeat' => $heartbeat,
         ];
+    }
+
+    public function getInstance(): AMQPStreamConnection
+    {
+        if (empty($this->instance) || !$this->instance->isConnected()) {
+            $heartbeat = $this->opt["heartbeat"];
+
+            $this->instance = new AMQPStreamConnection(
+                $this->opt["host"],
+                $this->opt["port"],
+                $this->opt["user"],
+                $this->opt["pass"],
+                $this->opt["vhost"] ?? '/',
+                false,
+                'AMQPLAIN',
+                null,
+                'en_US',
+                3.0,
+                // a lib exige read_write_timeout de pelo menos 2x o heartbeat
+                max(3.0, $heartbeat * 2),
+                null,
+                true,
+                $heartbeat
+            );
+        }
+
+        return $this->instance;
+    }
+
+    public function getChannel(): AMQPChannel
+    {
+        if (empty($this->channel) || !$this->channel->is_open()) {
+            $this->channel = $this->getInstance()->channel();
+        }
+
+        return $this->channel;
+    }
+
+    public function closeInstance()
+    {
+        if (!empty($this->instance) && $this->instance->isConnected()) {
+            $this->instance->close();
+        }
+    }
+
+    public function closeChannel()
+    {
+        if (!empty($this->channel) && $this->channel->is_open()) {
+            $this->channel->close();
+        }
     }
 }

@@ -1,17 +1,16 @@
 <?php
 
-declare(ticks=1);
-
 namespace WillRy\RabbitRun\Queue;
 
 
 use Exception;
+use PhpAmqpLib\Exception\AMQPTimeoutException;
 use PhpAmqpLib\Message\AMQPMessage;
 use WillRy\RabbitRun\Base;
 
 class Queue extends Base
 {
-    /** @var string nome do consumer */
+    /** @var string|null nome do consumer (consumer tag no RabbitMQ); vazio gera um nome aleatório */
     public $consumerName;
     
     /** @var string nome da fila */
@@ -19,6 +18,15 @@ class Queue extends Base
     
     /** @var string nome da exchange */
     protected $exchangeName;
+
+    /** @var array argumentos usados na declaração da fila */
+    protected $queueArguments = [];
+
+    /** @var array filas já declaradas no canal atual */
+    protected $declaredQueues = [];
+
+    /** @var \PhpAmqpLib\Channel\AMQPChannel|null canal em que as filas foram declaradas */
+    protected $declaredChannel;
 
     protected \Closure $onReceiveCallback;
 
@@ -28,16 +36,14 @@ class Queue extends Base
 
     protected \Closure $onCheckStatusCallback;
 
-    public function __construct($host, $port, $user, $pass, $vhost)
+    /**
+     * @param int $heartbeat intervalo em segundos (0 desativa); deve ser maior que a tarefa mais longa
+     */
+    public function __construct($host, $port, $user, #[\SensitiveParameter] $pass, $vhost, int $heartbeat = 60)
     {
         parent::__construct();
 
-        $this->configRabbit($host, $port, $user, $pass, $vhost);
-    }
-
-    public function shutdown($signal)
-    {
-        parent::shutdown($signal);
+        $this->configRabbit($host, $port, $user, $pass, $vhost, $heartbeat);
     }
 
     /**
@@ -51,35 +57,30 @@ class Queue extends Base
         string $queueName,
         array  $job
     ) {
-        try {
-            $this->createQueue($queueName);
+        $this->createQueue($queueName);
 
+        $payload = [
+            "payload" => $job,
+            'queue' => $this->queueName,
+        ];
 
-            $payload = [
-                "payload" => $job,
-                'queue' => $this->queueName,
-            ];
+        $json = json_encode($payload, JSON_THROW_ON_ERROR);
 
-            $json = json_encode($payload);
+        $message = new AMQPMessage(
+            $json,
+            array('content_type' => 'application/json', 'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT)
+        );
 
-            $message = new AMQPMessage(
-                $json,
-                array('content_type' => 'text/plain', 'delivery_mode' => AMQPMessage::DELIVERY_MODE_PERSISTENT)
-            );
+        $this->channel->basic_publish(
+            $message,
+            $this->exchangeName
+        );
 
-            $this->channel->basic_publish(
-                $message,
-                $this->exchangeName
-            );
-
-            if ($this->confirmSelect) {
-                $this->channel->wait_for_pending_acks(5000);
-            }
-
-            return $payload;
-        } catch (Exception $e) {
-            throw $e;
+        if ($this->confirmSelect) {
+            $this->channel->wait_for_pending_acks($this->confirmTimeout);
         }
+
+        return $payload;
     }
 
     /**
@@ -94,11 +95,62 @@ class Queue extends Base
 
         $this->exchangeName = "{$name}_exchange";
 
+        // novo canal (ex: após reconexão) precisa declarar tudo de novo
+        if ($this->declaredChannel !== $this->channel) {
+            $this->declaredQueues = [];
+            $this->declaredChannel = $this->channel;
+        }
+
+        if (isset($this->declaredQueues[$name])) {
+            return $this;
+        }
+
         $this->exchange($this->exchangeName);
 
-        $this->queue($name);
+        $this->queue($name, false, true, false, false, $this->queueArguments);
 
         $this->bind($name, $this->exchangeName);
+
+        $this->declaredQueues[$name] = true;
+
+        return $this;
+    }
+
+    /**
+     * Configura o tipo da fila e o limite de entregas
+     * Publisher e consumer devem usar a mesma configuração,
+     * pois o RabbitMQ não permite redeclarar a fila com argumentos diferentes
+     *
+     * @param string $type classic|quorum
+     * @param int|null $deliveryLimit (somente quorum) após N entregas a mensagem é descartada ou enviada à DLX
+     * @param string|null $deadLetterExchange exchange (já existente) que recebe as mensagens descartadas
+     * @return $this
+     */
+    public function configQueue(
+        string  $type = 'quorum',
+        ?int    $deliveryLimit = null,
+        ?string $deadLetterExchange = null
+    ) {
+        if (!in_array($type, ['classic', 'quorum'], true)) {
+            throw new \InvalidArgumentException("Tipo de fila inválido: {$type}");
+        }
+
+        if ($deliveryLimit !== null && $type !== 'quorum') {
+            throw new \InvalidArgumentException("deliveryLimit só é suportado em filas quorum");
+        }
+
+        $this->queueArguments = ['x-queue-type' => $type];
+
+        if ($deliveryLimit !== null) {
+            $this->queueArguments['x-delivery-limit'] = $deliveryLimit;
+        }
+
+        if ($deadLetterExchange !== null) {
+            $this->queueArguments['x-dead-letter-exchange'] = $deadLetterExchange;
+        }
+
+        // argumentos mudaram: as filas precisam ser declaradas novamente
+        $this->declaredQueues = [];
 
         return $this;
     }
@@ -106,7 +158,7 @@ class Queue extends Base
     /**
      * Loop de consumo de mensagem
      *
-     * @param int $sleepSeconds
+     * @param int $sleepSeconds intervalo de verificação do status enquanto o worker estiver pausado
      * @throws Exception
      */
     public function consume(
@@ -115,58 +167,106 @@ class Queue extends Base
     ) {
         $this->validateExecuteCallback();
 
+        if (!function_exists('pcntl_sigprocmask')) {
+            throw new \RuntimeException("A extensão pcntl é necessária para consumir filas");
+        }
 
-        $this->loopConnection(function () use ($sleepSeconds, $queueName) {
+        self::$consumers++;
 
-            $this->createQueue($queueName);
+        try {
+            $this->loopConnection(function () use ($sleepSeconds, $queueName) {
 
-            $this->channel->basic_qos(null, 1, null);
+                $this->createQueue($queueName);
 
-            $this->channel->basic_consume(
-                $this->queueName,
-                $this->randomConsumer(),
-                false,
-                false,
-                false,
-                false,
-                function (AMQPMessage $message) {
-                    pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT]);
+                $this->channel->basic_qos(null, 1, null);
 
-                    $incomeData = json_decode($message->getBody(), true);
-
-                    //se o status for negativo, nÃ£o executa o consumo
-                    $statusBoolean = $this->executeStatusCallback($message);
-
-                    if (!$statusBoolean) {
-                        return false;
+                while (!self::$stopping) {
+                    // Worker pausado: não consome, apenas verifica o status periodicamente
+                    if (!$this->isRunning()) {
+                        sleep($sleepSeconds);
+                        pcntl_signal_dispatch();
+                        continue;
                     }
 
-                    $receiveBoolean = $this->executeReceiveCallback($message, $incomeData);
+                    $this->consumeUntilCanceled();
+                }
+            });
+        } finally {
+            self::$consumers--;
+        }
+    }
 
-                    if (!$receiveBoolean) {
-                        return false;
+    /**
+     * Registra o consumer e processa mensagens até ele ser cancelado
+     * (ao pausar o worker via onCheckStatus)
+     */
+    protected function consumeUntilCanceled()
+    {
+        print_r("[WORKER RUNNING]" . PHP_EOL);
+
+        $this->channel->basic_consume(
+            $this->queueName,
+            $this->consumerName ?: $this->randomConsumer(),
+            false,
+            false,
+            false,
+            false,
+            function (AMQPMessage $message) {
+                pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT]);
+
+                try {
+                    $incomeData = json_decode($message->getBody(), true);
+
+                    // corpo inválido nunca será processado: descarta (ou envia para a DLX, se configurada)
+                    if (!is_array($incomeData)) {
+                        $reason = json_last_error() !== JSON_ERROR_NONE ? json_last_error_msg() : "body is not a JSON object";
+                        print_r("[INVALID MESSAGE BODY] {$reason}" . PHP_EOL);
+                        $message->nack();
+                        return;
+                    }
+
+                    //se o status for negativo, não executa o consumo
+                    if (!$this->executeStatusCallback($message)) {
+                        return;
+                    }
+
+                    if (!$this->executeReceiveCallback($message, $incomeData)) {
+                        return;
                     }
 
                     try {
                         $this->executeMessage($message, $incomeData);
-                    } catch (Exception $e) {
-                        $message->nack(true);
-                        $this->executeErrorCallback($e, $incomeData);
+                    } catch (\Throwable $e) {
+                        try {
+                            // registra a falha antes de devolver a mensagem, para outro worker não recebê-la antes disso
+                            $this->executeErrorCallback($e, $incomeData, $message);
+                        } finally {
+                            $this->nackIfPending($message, true);
+                        }
+                        return;
                     }
 
+                    // callback terminou sem responder a mensagem: confirma automaticamente
+                    $this->ackIfPending($message);
+                } finally {
+                    // sempre libera os sinais, mesmo se algum callback lançar exceção
                     pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
                 }
-            );
-
-            // Loop as long as the channel has callbacks registered
-            while ($this->channel->is_open()) {
-                $this->channel->wait(null, false);
-                sleep($sleepSeconds);
-
-                // Despachar eventos de "finalizar" script
-                pcntl_signal_dispatch();
             }
-        });
+        );
+
+        // Loop enquanto houver consumers registrados no canal
+        while ($this->channel->is_consuming() && !self::$stopping) {
+            try {
+                // timeout curto para verificar o sinal de parada mesmo sem mensagens
+                $this->channel->wait(null, false, 1);
+            } catch (AMQPTimeoutException $e) {
+                // nenhuma mensagem no período
+            }
+
+            // Despachar eventos de "finalizar" script
+            pcntl_signal_dispatch();
+        }
     }
 
     public function validateExecuteCallback()
@@ -180,6 +280,23 @@ class Queue extends Base
 
     public function executeStatusCallback(AMQPMessage $message)
     {
+        if ($this->isRunning()) {
+            return true;
+        }
+
+        print_r("[WORKER STOPPED]" . PHP_EOL);
+
+        // cancela o consumer antes de devolver a mensagem, para o broker não entregar outra a este worker
+        $message->getChannel()->basic_cancel($message->getConsumerTag());
+        $message->nack(true);
+        return false;
+    }
+
+    /**
+     * Status do worker segundo o onCheckStatus (retorno null conta como ativo)
+     */
+    protected function isRunning(): bool
+    {
         if (empty($this->onCheckStatusCallback)) {
             return true;
         }
@@ -187,14 +304,7 @@ class Queue extends Base
         $checkStatusCallback = $this->onCheckStatusCallback;
         $statusBoolean = $checkStatusCallback();
 
-        if (!$statusBoolean && isset($statusBoolean)) {
-            print_r("[WORKER STOPPED]" . PHP_EOL);
-            $message->nack(true);
-            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
-            return false;
-        }
-
-        return true;
+        return $statusBoolean || !isset($statusBoolean);
     }
 
     public function executeReceiveCallback(AMQPMessage $message, $incomeData)
@@ -208,7 +318,6 @@ class Queue extends Base
         if (!$statusBoolean && isset($statusBoolean)) {
             print_r("[TASK IGNORED BY ON RECEIVE RETURN]" . PHP_EOL);
             $message->nack();
-            pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
             return false;
         }
 
@@ -222,15 +331,39 @@ class Queue extends Base
         $onExecutingCallback($message, $incomeData);
     }
 
-    public function executeErrorCallback(Exception $e, $incomeData)
+    public function executeErrorCallback(\Throwable $e, $incomeData, ?AMQPMessage $message = null)
     {
         if (empty($this->onErrorCallback)) {
             return false;
         }
 
         $errorCallback = $this->onErrorCallback;
-        $errorCallback($e, $incomeData);
+        $errorCallback($e, $incomeData, $message);
         return true;
+    }
+
+    /**
+     * Faz ack apenas se o callback ainda não respondeu a mensagem
+     */
+    protected function ackIfPending(AMQPMessage $message)
+    {
+        try {
+            $message->ack();
+        } catch (\LogicException $e) {
+            // mensagem já respondida (ack/nack) pelo callback
+        }
+    }
+
+    /**
+     * Faz nack apenas se o callback ainda não respondeu a mensagem
+     */
+    protected function nackIfPending(AMQPMessage $message, bool $requeue = false)
+    {
+        try {
+            $message->nack($requeue);
+        } catch (\LogicException $e) {
+            // mensagem já respondida (ack/nack) pelo callback
+        }
     }
 
     public function onCheckStatus(\Closure $callback)

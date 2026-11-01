@@ -1,4 +1,4 @@
-FROM php:8.3-apache-bullseye
+FROM php:8.5-apache-trixie
 
 RUN apt-get update && \
     apt-get install -y \
@@ -29,16 +29,19 @@ RUN apt-get update && \
 
 
 
+# instalar o PIE que está substituindo o PECL como instalador de extensões PHP
+RUN wget -qO /tmp/pie.phar https://github.com/php/pie/releases/latest/download/pie.phar \
+    && mv /tmp/pie.phar /usr/local/bin/pie \
+    && chmod +x /usr/local/bin/pie
 
 RUN docker-php-ext-install mysqli pdo_mysql bcmath exif gd intl zip sockets pcntl
+
 RUN pecl install https://pecl.php.net/get/ssh2-1.3.1.tgz && docker-php-ext-enable ssh2
-RUN pecl install xdebug && docker-php-ext-enable xdebug
 
-COPY --from=mlocati/php-extension-installer /usr/bin/install-php-extensions /usr/local/bin/
-RUN install-php-extensions imagick/imagick@master
-
-RUN pecl install redis && docker-php-ext-enable redis
-RUN pecl install mongodb && docker-php-ext-enable mongodb
+RUN pie install xdebug/xdebug
+RUN pie install imagick/imagick
+RUN pie install phpredis/phpredis
+RUN pie install mongodb/mongodb-extension
 
 # atualiza timezone do php
 # RUN pecl install timezonedb
@@ -48,7 +51,7 @@ RUN pecl install mongodb && docker-php-ext-enable mongodb
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg
 RUN docker-php-ext-install -j$(nproc) gd
 
-ENV DOCKERIZE_VERSION v0.6.1
+ENV DOCKERIZE_VERSION=v0.6.1
 RUN wget https://github.com/jwilder/dockerize/releases/download/$DOCKERIZE_VERSION/dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
     && tar -C /usr/local/bin -xzvf dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz \
     && rm dockerize-linux-amd64-$DOCKERIZE_VERSION.tar.gz

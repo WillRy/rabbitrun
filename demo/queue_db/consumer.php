@@ -62,7 +62,7 @@ $worker->onExecuting(function (AMQPMessage $message, $dados) {
 
     echo ' [x] [  success  ] ', $payload['id'], "\n";
 });
-$worker->onError(function (\Exception $e, $dados) {
+$worker->onError(function (\Throwable $e, $dados) {
     $payload = $dados['payload'];
     $id = $payload['id'];
 

@@ -25,9 +25,9 @@ $worker->onReceive(function ($dados) {
 
 /**
  * Método que processa o item da fila
- * É sempre necessária dar um destino a mensagem
  *
- * Fazer um $message->ack para marcar como "sucesso"
+ * Se o callback terminar sem erro, a mensagem recebe ack automaticamente
+ * Fazer um $message->ack para marcar como "sucesso" explicitamente
  * Fazer um $message->nack() para descartar
  * Fazer um $message->nack(true) para repor na fila
  *
@@ -52,7 +52,7 @@ $worker->onExecuting(function (AMQPMessage $message, $dados) {
  * Método que executa automaticamente caso aconteça uma exception não tratada
  * durante o processamento
  */
-$worker->onError(function (\Exception $e, $dados) {
+$worker->onError(function (\Throwable $e, $dados) {
     echo ' [x] [   error   ] ', json_encode($dados), "\n";
 });
 

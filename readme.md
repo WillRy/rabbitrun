@@ -4,39 +4,32 @@ Qualidade de código:
 
 [![Scrutinizer Code Quality](https://scrutinizer-ci.com/g/WillRy/rabbitrun/badges/quality-score.png?b=main)](https://scrutinizer-ci.com/g/WillRy/rabbitrun/?branch=main)
 
-Mecanismo de fila utilizando a combinação do RabbitMQ e MySQL
+Biblioteca para criar filas com RabbitMQ de forma rápida e simples: publicar tarefas e consumi-las
+com workers, com reconexão automática, confirmação de publicação e encerramento seguro.
 
-- O RabbitMQ para entrega e distribuição da tarefa entre os workers
-- O MySQL para conter detalhes sobre quais tarefas foram executadas e também quais devem ser ignoradas na fila
-
-Combinando o MySQL junto ao RabbitMQ, é possível pesquisar e excluir/ignorar itens da fila de forma simples, o que não é
-possível somente com o RabbitMQ, devido as limitações dele em procurar itens dentro da fila
+Opcionalmente, a fila pode ser espelhada em um banco de dados (veja "Exemplo com banco de dados"),
+o que permite pesquisar e excluir/ignorar itens da fila, algo que o RabbitMQ sozinho não oferece.
 
 **Workers**: É possível ter vários workers consumindo a fila ao mesmo tempo, pois o RabbitMQ trata a distribuição de
 tarefa entre eles.
 
 ## Graceful stop - parar somente após terminar task
 
-Para garantir que os consumers/workers não reiniciem durante a execução de uma task, foram
-implementados mecanismos que detectam os "signals" para encerrar o script e assim só finalizam
-o script após terminar a task atual.
+Ao receber **SIGTERM** ou **SIGINT** (ex: `docker stop`, Ctrl+C), o worker:
 
-Isso é feito através dos signals: 
-- SIGINT 
-- SIGTERM
+- se estiver ocioso, encerra em até 1 segundo;
+- se estiver processando uma task, termina a task atual antes de encerrar.
 
-Usando os recursos:
-- pcntl_sigprocmask(SIG_BLOCK, [SIGTERM, SIGINT]);
-- pcntl_sigprocmask(SIG_UNBLOCK, [SIGTERM, SIGINT]);
-- pcntl_signal_dispatch();
+Em ambos os casos as conexões são fechadas e o `consume()` retorna, permitindo executar código após ele.
+Scripts que apenas publicam encerram imediatamente.
 
 ## Requisitos
 
-- MySQL
-- PHP >= 8.0 com PDO
-- RabbitMQ >= 3.8 (Filas do tipo Quorum são necessárias)
+- PHP >= 8.0
+- Extensão **pcntl** para consumir filas (não é necessária para apenas publicar)
+- RabbitMQ >= 3.8 (Filas do tipo Quorum são recomendadas, veja "Limite de tentativas")
 
-## Demonstração
+## Desempenho
 
 **Consumo de hardware baixo com 50k de mensagens e 40 workers**
 
@@ -76,7 +69,7 @@ for ($i = 0; $i <= 1000; $i++) {
 
 ## Como consumir itens da fila?
 
-- Criar a classe de worker responsavel pelo processament **(Implementar a interface WorkerInterface)**
+- Defina os callbacks e inicie o consumo com `consume()`
 
 ```php
 <?php
@@ -119,9 +112,9 @@ $worker->onReceive(function ($dados) {
 
 /**
  * Método que processa o item da fila
- * É sempre necessária dar um destino a mensagem
  *
- * Fazer um $message->ack para marcar como "sucesso"
+ * Se o callback terminar sem erro, a mensagem recebe ack automaticamente
+ * Fazer um $message->ack para marcar como "sucesso" explicitamente
  * Fazer um $message->nack() para descartar
  * Fazer um $message->nack(true) para repor na fila
  *
@@ -146,7 +139,7 @@ $worker->onExecuting(function (AMQPMessage $message, $dados) {
  * Método que executa automaticamente caso aconteça uma exception não tratada
  * durante o processamento
  */
-$worker->onError(function (\Exception $e, $dados) {
+$worker->onError(function (\Throwable $e, $dados) {
     echo ' [x] [   error   ] ', json_encode($dados), "\n";
 });
 
@@ -156,22 +149,83 @@ $worker->consume("queue_teste");
 
 ```
 
-## OBRIGATÓRIO
+## Destino da mensagem
 
-- Sempre execute um: **nack** ou **ack** para que a tarefa tenha um tratamento e não fique
-  infinito na fila.
+- Se o **onExecuting** terminar sem erro e sem responder a mensagem, ela recebe **ack** automaticamente.
+- Se o **onExecuting** lançar uma exception não tratada, a mensagem volta para a fila.
+- Para decidir o destino explicitamente:
 
 - nack(): marca como erro
 - nack(true): marca como erro e coloca novamete na fila
 - ack(): marca a tarefa como concluida
 
+## Conexões
+
+Cada instância de `Queue` abre a **sua própria conexão** com o RabbitMQ, então é possível usar
+brokers ou vhosts diferentes no mesmo processo. Para publicar de dentro de um consumer, crie o publisher
+**uma única vez, fora do callback** (criar dentro do `onExecuting` abriria uma conexão por mensagem):
+
+```php
+$worker = new \WillRy\RabbitRun\Queue\Queue("rabbitmq", "5672", "admin", "admin", "/");
+$publisher = new \WillRy\RabbitRun\Queue\Queue("rabbitmq", "5672", "admin", "admin", "/");
+
+$worker->onExecuting(function (AMQPMessage $message, $dados) use ($publisher) {
+    $publisher->publish("proxima_fila", $dados['payload']);
+});
+```
+
+## Heartbeat e tarefas longas
+
+A conexão usa **heartbeat de 60 segundos** por padrão, para detectar conexões que morreram em silêncio
+(firewall, NAT, load balancer ou queda do servidor) e reconectar automaticamente.
+
+> ⚠️ Durante a execução do `onExecuting` nenhum heartbeat é enviado. Se uma tarefa demorar mais que o
+> heartbeat, o RabbitMQ fecha a conexão, o `ack` falha e a mensagem é entregue novamente, repetindo o problema.
+> Para tarefas longas, informe um heartbeat maior que a tarefa mais demorada, ou `0` para desativar:
+
+```php
+$worker = new \WillRy\RabbitRun\Queue\Queue(
+    "rabbitmq", "5672", "admin", "admin", "/",
+    heartbeat: 600 // tarefas de até ~10 minutos
+);
+```
+
+## Limite de tentativas
+
+Por padrão a fila é do tipo **classic** e uma mensagem que sempre falha volta para a fila indefinidamente.
+
+Para limitar as tentativas, use uma fila **quorum** com `deliveryLimit`: após esse número de devoluções
+o RabbitMQ descarta a mensagem ou envia para a dead letter exchange (que deve existir previamente).
+
+```php
+$worker->configQueue(
+    type: 'quorum',
+    deliveryLimit: 5,
+    deadLetterExchange: 'falhas_exchange' // opcional
+);
+```
+
+- Publisher e consumer devem chamar o `configQueue` com os **mesmos** valores, pois o RabbitMQ
+  não permite redeclarar a fila com argumentos diferentes (`PRECONDITION_FAILED`).
+- Uma fila classic existente não pode ser convertida em quorum: é preciso apagá-la ou migrá-la.
+
+O `onError` é chamado **antes** de a mensagem voltar para a fila e recebe a mensagem como 3º argumento,
+permitindo controlar as tentativas pelo seu banco de dados e descartar a mensagem:
+
+```php
+$worker->onError(function (\Throwable $e, $dados, AMQPMessage $message) {
+    if (tentativasEsgotadas($dados)) {
+        $message->nack(); // descarta em vez de devolver para a fila
+    }
+});
+```
+
 ## Demonstração
 
-Dentro desse repositório tem a pasta **demo**, nela tem 3 exemplos:
+Dentro desse repositório tem a pasta **demo**, nela tem 2 exemplos:
 
 - queue: consumer e publisher simples
 - queue_db: consumer e publisher que mantém espelho/monitoramento da fila no banco de dados
-- pubsub: consumer e publisher no modelo pubsub
 
 - **publisher.php**: Arquivo que publica itens na fila
 - **consumer.php**: Arquivo que consome itens na fila, podendo ter várias instâncias

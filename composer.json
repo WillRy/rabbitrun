@@ -20,12 +20,12 @@
         }
     },
     "require": {
-        "php-amqplib/php-amqplib": "3.7.3",
-        "ext-pcntl": "*",
-        "ext-pdo": "*",
+        "php": "^8.0",
+        "php-amqplib/php-amqplib": "^3.7",
         "ext-json": "*"
     },
     "suggest": {
-        "mongodb/mongodb": "^1.13"
+        "ext-pcntl": "Necessária para consumir filas (consume) com encerramento seguro via SIGTERM/SIGINT",
+        "ext-pdo": "Necessária apenas para a classe ConnectPDO"
     }
 }
